@@ -2,6 +2,37 @@
 
 一个通用 SwiftUI iOS 实验白板，最低支持 iOS 17。`main` 保持空白画布，每个实验从 `main` 创建独立分支。`blank-canvas` 标签标记最初的白板提交。
 
+## 当前实验：蛇行 · 自动贪吃蛇专注伴侣
+
+分支 `experiment/autonomous-snake-focus`，从空白 `main` 独立创建。
+
+打开即自动运行第一张 **16 × 24 无边界地图**。机器人自行寻找随机食物，四边可环绕，逐步填满棋盘。你可以把手机放在一边开始工作，填满或碰撞结束后会出现休息提示，不会自动开下一局。
+
+- 原生 Swift 安全环路与捷径算法，无需训练、下载模型或联网。
+- 深绿棋盘、浅绿蛇身、暖橙食物；平滑移动、穿边动画、专注计时和填充进度。
+- 三档节奏：舒缓 6 步/秒、平稳 10 步/秒、流动 16 步/秒；支持暂停、重开。
+- 前台运行时保持屏幕常亮；暂停、暂时失活或进入后台时停止游戏和计时，恢复原有常亮设置。返回前台继续原局，不补跑后台步数；手动暂停会保持。
+- 提醒仅在应用内出现；进程结束后，下次重新随机开局，不持久化存档。
+
+这不是固定时长的番茄钟。1,000 个默认地图种子的离线测试在 10 步/秒下，理论运行时间约 50–63 分钟，中位数 57.6 分钟。实际时间取决于食物、节奏、暂停和设备调度。算法的安全与填满性质限于本实验的单蛇、单食物、无障碍环绕地图。
+
+方案、开源调研、算法不变量、界面与验证说明见 [Docs/AutonomousSnake.md](Docs/AutonomousSnake.md)。
+
+### 验证命令
+
+```sh
+Scripts/check-snake.sh
+# 扩展到 4,000 局完整填满检查，其中默认地图 1,000 局：
+SNAKE_DEFAULT_SEEDS=1000 Scripts/check-snake.sh
+
+xcodebuild -project iOSLab.xcodeproj -scheme iOSLab \
+  -configuration Debug -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Debug 构建支持模拟器检查参数 `--snake-preview-filled`、`--snake-preview-near-full` 和 `--snake-preview-last-bite`，分别展示满屏、接近满屏，以及自动吃掉最后一格后结束的过程。普通启动与 Release 构建不使用这些参数。
+
 ## 打开运行
 
 1. 用 Xcode 打开 `iOSLab.xcodeproj`。

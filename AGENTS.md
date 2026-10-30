@@ -8,3 +8,4 @@
 - The base app is a white screen with no feature code, extra permissions or entitlements. Keep shared-template changes minimal.
 - App identity and signing live in `iOSLab/Configuration/Base.xcconfig`. Add experiment-specific identity only when necessary for that experiment.
 - Validate source or project changes with an appropriate simulator build. The main template has no behavior requiring a test target.
+- After completing and validating work, create a local Git commit without waiting for an additional request. Do not push unless requested.
