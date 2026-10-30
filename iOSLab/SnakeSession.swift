@@ -38,6 +38,7 @@ final class SnakeSession: ObservableObject {
     @Published private(set) var isPaused = false
     @Published private(set) var isInBackground = false
     @Published private(set) var movementBeganAt = Date()
+    @Published private(set) var movementBeganAtElapsed: TimeInterval = 0
     @Published private(set) var moveDuration: Double = SnakeSpeed.steady.interval
     @Published var speed: SnakeSpeed = .steady {
         didSet {
@@ -82,12 +83,14 @@ final class SnakeSession: ObservableObject {
         let stopsBeforeLastBite = arguments.contains("--snake-preview-last-bite")
         let nearFull = arguments.contains("--snake-preview-near-full")
         let midpoint = arguments.contains("--snake-preview-midpoint")
-        if arguments.contains("--snake-preview-filled") || nearFull || stopsBeforeLastBite || midpoint {
+        let shape = arguments.contains("--snake-preview-shape")
+        if arguments.contains("--snake-preview-filled") || nearFull || stopsBeforeLastBite || midpoint || shape {
             initial = SnakeEngine(seed: 42, strategy: selectedStrategy)
             let fillCompletely = arguments.contains("--snake-preview-filled")
             let target = fillCompletely ? initial.configuration.cellCount
                 : (stopsBeforeLastBite ? initial.configuration.cellCount - 1
-                   : Int(ceil(Double(initial.configuration.cellCount) * (nearFull ? 0.95 : 0.5))))
+                   : (shape ? min(64, initial.configuration.cellCount - 1)
+                      : Int(ceil(Double(initial.configuration.cellCount) * (nearFull ? 0.95 : 0.5)))))
             let limit = initial.configuration.cellCount * initial.configuration.cellCount
                 + initial.configuration.cellCount
             while initial.phase == .playing && initial.steps < limit
@@ -98,6 +101,9 @@ final class SnakeSession: ObservableObject {
         #endif
         engine = initial
         previousSnake = initial.snake
+        #if DEBUG
+        isPaused = arguments.contains("--snake-preview-static")
+        #endif
     }
 
     deinit {
@@ -142,6 +148,7 @@ final class SnakeSession: ObservableObject {
         engine = SnakeEngine(strategy: strategy)
         previousSnake = engine.snake
         movementBeganAt = Date()
+        movementBeganAtElapsed = 0
         moveDuration = speed.interval
         isPaused = false
         start()
@@ -153,6 +160,7 @@ final class SnakeSession: ObservableObject {
         // Never interpolate across an interruption or replay background ticks.
         previousSnake = engine.snake
         movementBeganAt = Date()
+        movementBeganAtElapsed = elapsedSeconds
         if hasStarted && !isPaused { start() }
     }
 
@@ -162,6 +170,13 @@ final class SnakeSession: ObservableObject {
         freezeElapsedTime()
         cancelLoop()
         synchronizeScreenAwake()
+    }
+
+    /// A presentation-only clock: sampling at display refresh rate does not
+    /// publish HUD updates. Ignore wall-clock dates so phase remains monotonic
+    /// through system time adjustments, pauses and background interruptions.
+    func animationTime(at _: Date) -> TimeInterval {
+        isRunning ? currentElapsedTime() : elapsedSeconds
     }
 
     private func scheduleLoop() {
@@ -190,6 +205,7 @@ final class SnakeSession: ObservableObject {
         updateElapsedTime()
         previousSnake = engine.snake
         movementBeganAt = Date()
+        movementBeganAtElapsed = elapsedSeconds
         moveDuration = speed.interval
         engine.step()
         guard hasEnded else { return }
@@ -207,11 +223,15 @@ final class SnakeSession: ObservableObject {
         loop = nil
     }
 
-    private func updateElapsedTime() {
-        guard let activeStartedAt else { return }
+    private func currentElapsedTime() -> TimeInterval {
+        guard let activeStartedAt else { return elapsedSeconds }
         let duration = activeStartedAt.duration(to: clock.now).components
-        elapsedSeconds = elapsedBeforeActiveSegment + Double(duration.seconds)
+        return elapsedBeforeActiveSegment + Double(duration.seconds)
             + Double(duration.attoseconds) / 1_000_000_000_000_000_000
+    }
+
+    private func updateElapsedTime() {
+        elapsedSeconds = currentElapsedTime()
     }
 
     private func freezeElapsedTime() {

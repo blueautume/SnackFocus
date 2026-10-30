@@ -9,7 +9,7 @@
 打开即自动运行第一张 **16 × 24 无边界地图**。机器人自行寻找随机食物，四边可环绕，逐步填满棋盘。你可以把手机放在一边开始工作，填满或碰撞结束后会出现休息提示，不会自动开下一局。
 
 - 原生 Swift 提供「经典环路」与「动态环路」，默认动态。动态策略在进食后尝试重构安全闭环，无合适新路线时沿用旧环；两种策略在当前规则下均能逐步填满。
-- 参考 Snake Xenzia 的简洁 LCD 风格：黄绿色底、黑色方格、点阵字形、步进画面；首页仅保留分数、计时、棋盘、暂停和重开。策略与节奏集中在设置，切换策略会重新开局。
+- 参考提供的 Snake Xenzia 形态：连续像素蛇身、加宽且有朝向眼睛的头部、渐细尖尾，以及沿身体传递的左右摆动。食物在小十字与像素圆之间周期缩放。首页只保留必要信息，策略与节奏集中在设置。
 - 三档节奏：舒缓 6 步/秒、平稳 10 步/秒、流动 16 步/秒；支持暂停、重开。
 - 前台运行时保持屏幕常亮；暂停、暂时失活或进入后台时停止游戏和计时，恢复原有常亮设置。返回前台继续原局，不补跑后台步数；手动暂停会保持。
 - 提醒仅在应用内出现；进程结束后，下次重新随机开局，不持久化存档。
@@ -22,6 +22,8 @@
 
 ```sh
 Scripts/check-snake.sh
+# 渲染几何：头尾、摆动、食物呼吸、成长与穿边：
+Scripts/check-snake-visuals.sh
 # 扩展默认地图的种子数量：
 SNAKE_DEFAULT_SEEDS=1000 Scripts/check-snake.sh
 
@@ -31,7 +33,7 @@ xcodebuild -project iOSLab.xcodeproj -scheme iOSLab \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-Debug 构建支持模拟器检查参数 `--snake-preview-midpoint`、`--snake-preview-filled`、`--snake-preview-near-full` 和 `--snake-preview-last-bite`，分别展示半屏、满屏、接近满屏，以及自动吃掉最后一格后结束的过程。追加 `--snake-strategy-classic` 可检查经典策略。普通启动与 Release 构建不使用这些参数。
+Debug 构建支持 `--snake-preview-shape`（真实运行到 64 格，检查头尾与动效）、`--snake-preview-midpoint`、`--snake-preview-filled`、`--snake-preview-near-full` 和 `--snake-preview-last-bite`。追加 `--snake-strategy-classic` 可检查经典策略；`--snake-preview-static` 以暂停状态启动。普通启动与 Release 构建不使用这些参数。
 
 ## 打开运行
 

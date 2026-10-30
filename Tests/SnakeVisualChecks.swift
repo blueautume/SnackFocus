@@ -1,0 +1,252 @@
+import Foundation
+
+@inline(__always)
+private func expect(_ condition: @autoclosure () -> Bool, _ message: @autoclosure () -> String) {
+    if !condition() { fatalError(message()) }
+}
+
+private let map = SnakeConfiguration.firstMap
+
+private func close(_ a: Double, _ b: Double, tolerance: Double = 0.000_001) -> Bool {
+    abs(a - b) < tolerance
+}
+
+private func modulo(_ value: Double, period: Int) -> Double {
+    let result = value.truncatingRemainder(dividingBy: Double(period))
+    return result < 0 ? result + Double(period) : result
+}
+
+private func distance(_ a: SnakeVisualPoint, _ b: SnakeVisualPoint) -> Double {
+    hypot(a.x - b.x, a.y - b.y)
+}
+
+private func frame(_ snake: [GridCell], previous: [GridCell]? = nil, progress: Double = 1,
+                   time: Double = 0, food: GridCell? = nil, reduced: Bool = false) -> SnakeVisualFrame {
+    SnakeVisualGeometry.frame(configuration: map, snake: snake, previousSnake: previous ?? snake,
+                              food: food, progress: progress, time: time, reduceMotion: reduced)
+}
+
+private func checkFiniteAndLocal(_ result: SnakeVisualFrame) {
+    expect(result.columns == map.columns * SnakeVisualGeometry.pixelsPerCell, "Wrong raster width")
+    expect(result.rows == map.rows * SnakeVisualGeometry.pixelsPerCell, "Wrong raster height")
+    expect(result.dots.count == result.columns * result.rows, "Incomplete raster")
+    expect(result.dots.allSatisfy { $0 <= 2 }, "Unknown raster value")
+    expect(result.heading.x.isFinite && result.heading.y.isFinite, "Nonfinite heading")
+    expect(close(result.heading.length, 1), "Heading is not a direction")
+    for point in result.centers {
+        expect(point.x.isFinite && point.y.isFinite, "Nonfinite body anchor")
+    }
+    for pair in zip(result.centers, result.centers.dropFirst()) {
+        expect(distance(pair.0, pair.1) <= 1.000_001, "Body anchor bridges across the board")
+    }
+    for sample in result.samples {
+        expect(sample.center.x.isFinite && sample.center.y.isFinite, "Nonfinite curve sample")
+        expect(sample.radius.isFinite && sample.radius > 0, "Invalid body radius")
+        expect(sample.bodyPosition.isFinite, "Nonfinite body position")
+    }
+    for pair in zip(result.samples, result.samples.dropFirst()) {
+        expect(distance(pair.0.center, pair.1.center) < 1, "Curve has a screen-spanning bridge")
+        expect(pair.0.bodyPosition <= pair.1.bodyPosition, "Curve reverses body order")
+    }
+}
+
+private func checkEndpointsAndGrowth() {
+    let before = [GridCell(x: 5, y: 5), GridCell(x: 4, y: 5), GridCell(x: 3, y: 5), GridCell(x: 2, y: 5)]
+    let moving = [GridCell(x: 6, y: 5)] + before.dropLast()
+    let growing = [GridCell(x: 6, y: 5)] + before
+    for snake in [moving, growing] {
+        for progress in [0.0, 0.125, 0.5, 0.875, 1.0] {
+            let result = frame(snake, previous: before, progress: progress, time: 0.37)
+            checkFiniteAndLocal(result)
+            expect(result.centers.count == snake.count, "Growth lost an anchor")
+            expect(close(result.centers[0].x, 5.5 + progress), "Head interpolation is not one cell")
+            expect(close(result.centers[0].y, 5.5), "Head drifts across its lane")
+            if snake.count > before.count {
+                expect(close(result.centers.last!.x, 2.5), "Growth moves the old tail")
+            }
+        }
+        for (progress, expected) in [(0.0, before + (snake.count > before.count ? [before.last!] : [])), (1.0, snake)] {
+            let result = frame(snake, previous: before, progress: progress)
+            for (point, cell) in zip(result.centers, expected) {
+                expect(close(modulo(point.x, period: map.columns), Double(cell.x) + 0.5), "Wrong endpoint x")
+                expect(close(modulo(point.y, period: map.rows), Double(cell.y) + 0.5), "Wrong endpoint y")
+            }
+        }
+        expect(frame(snake, previous: before, progress: -1).centers == frame(snake, previous: before, progress: 0).centers,
+               "Negative progress is not clamped")
+        expect(frame(snake, previous: before, progress: 2).centers == frame(snake, previous: before, progress: 1).centers,
+               "Excess progress is not clamped")
+    }
+    checkFiniteAndLocal(frame([]))
+    checkFiniteAndLocal(frame([GridCell(x: 1, y: 1)]))
+    checkFiniteAndLocal(frame(Array(before.prefix(2))))
+}
+
+private func checkWrapAndCorners() {
+    let before = [GridCell(x: 15, y: 8), GridCell(x: 14, y: 8), GridCell(x: 13, y: 8)]
+    let after = [GridCell(x: 0, y: 8), GridCell(x: 15, y: 8), GridCell(x: 14, y: 8)]
+    let middle = frame(after, previous: before, progress: 0.5, time: 0.2)
+    checkFiniteAndLocal(middle)
+    expect(close(middle.centers[0].x, 16) && close(middle.centers[0].y, 8.5), "Horizontal wrap crosses the board interior")
+    expect(close(middle.heading.x, 1) && close(middle.heading.y, 0), "Head faces backward at a seam")
+    let density = SnakeVisualGeometry.pixelsPerCell
+    for index in middle.dots.indices where middle.dots[index] == 1 {
+        let cellX = index % middle.columns / density
+        expect(cellX <= 1 || cellX >= 12, "Wrap raster draws a bridge through middle columns")
+    }
+
+    let cornerBefore = [GridCell(x: 15, y: 0), GridCell(x: 15, y: 23), GridCell(x: 15, y: 22), GridCell(x: 14, y: 22)]
+    let cornerAfter = [GridCell(x: 0, y: 0)] + cornerBefore.dropLast()
+    for progress in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let result = frame(cornerAfter, previous: cornerBefore, progress: progress, time: 0.43)
+        checkFiniteAndLocal(result)
+        expect(result.heading.x >= -0.000_001 && result.heading.y >= -0.000_001, "Corner heading takes the long rotation")
+    }
+    let start = frame(cornerAfter, previous: cornerBefore, progress: 0)
+    let end = frame(cornerAfter, previous: cornerBefore, progress: 1)
+    expect(close(start.heading.x, 0) && close(start.heading.y, 1), "Wrong initial corner heading")
+    expect(close(end.heading.x, 1) && close(end.heading.y, 0), "Wrong final corner heading")
+}
+
+private func rowSpan(in cell: GridCell, raster: SnakeVisualFrame) -> Int {
+    let density = SnakeVisualGeometry.pixelsPerCell
+    var occupiedRows: [Int] = []
+    for y in 0..<density {
+        if (0..<density).contains(where: { x in raster.dots[(cell.y * density + y) * raster.columns + cell.x * density + x] == 1 }) {
+            occupiedRows.append(y)
+        }
+    }
+    return occupiedRows.isEmpty ? 0 : occupiedRows.last! - occupiedRows.first! + 1
+}
+
+private func enclosedEyePixels(in cell: GridCell, raster: SnakeVisualFrame) -> Int {
+    let density = SnakeVisualGeometry.pixelsPerCell
+    var seen = Set<Int>()
+    var enclosed = 0
+    func isEmpty(_ x: Int, _ y: Int) -> Bool {
+        raster.dots[(cell.y * density + y) * raster.columns + cell.x * density + x] == 0
+    }
+    for y in 0..<density {
+        for x in 0..<density where isEmpty(x, y) && !seen.contains(y * density + x) {
+            var stack = [(x, y)]
+            var reachesBorder = false
+            while let (px, py) = stack.popLast() {
+                guard !seen.contains(py * density + px) else { continue }
+                seen.insert(py * density + px)
+                reachesBorder = reachesBorder || px == 0 || py == 0 || px == density - 1 || py == density - 1
+                for (nx, ny) in [(px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)] {
+                    if (0..<density).contains(nx) && (0..<density).contains(ny) && isEmpty(nx, ny) && !seen.contains(ny * density + nx) {
+                        stack.append((nx, ny))
+                    }
+                }
+            }
+            if !reachesBorder { enclosed += 1 }
+        }
+    }
+    return enclosed
+}
+
+private func checkAnatomyAndWaves() {
+    let snake = (0..<10).map { GridCell(x: 12 - $0, y: 8) }
+    let still = frame(snake, reduced: true)
+    expect(rowSpan(in: snake[0], raster: still) > rowSpan(in: snake[2], raster: still), "Head is not broader than the body")
+    expect(rowSpan(in: snake.last!, raster: still) < rowSpan(in: snake[2], raster: still), "Tail is not visibly thinner")
+    expect(enclosedEyePixels(in: snake[0], raster: still) >= 2, "Head has no distinct pair of eyes")
+    expect(still.samples.last!.radius < still.samples.first!.radius * 0.4, "Tail does not taper to a point")
+    let tailSamples = still.samples.filter { $0.bodyPosition >= 5 }
+    for pair in zip(tailSamples, tailSamples.dropFirst()) {
+        expect(pair.1.radius <= pair.0.radius + 0.000_001, "Tail widens toward its tip")
+    }
+    let first = frame(snake, time: 0.1)
+    let later = frame(snake, time: 0.6)
+    expect(first.samples.count == still.samples.count && first.samples.count == later.samples.count, "Animation changes sampling topology")
+    expect(first.samples[0].center == still.samples[0].center, "Wave moves the head off its logical anchor")
+    expect(zip(first.samples, later.samples).contains { distance($0.center, $1.center) > 0.03 }, "Body does not undulate over time")
+    for (moving, base) in zip(first.samples, still.samples) {
+        expect(distance(moving.center, base.center) <= 0.17, "Wave escapes its narrow logical corridor")
+    }
+    let reducedLater = frame(snake, progress: 0.25, time: 10, reduced: true)
+    expect(still.dots == reducedLater.dots, "Reduced Motion retains a running animation")
+}
+
+private func checkFoodPulse() {
+    let snake = (0..<8).map { GridCell(x: 12 - $0, y: 3) }
+    let food = GridCell(x: 8, y: 15)
+    var minimum = (time: 0.0, radius: Double.greatestFiniteMagnitude)
+    var maximum = (time: 0.0, radius: 0.0)
+    for index in 0...140 {
+        let time = Double(index) / 100
+        let radius = SnakeVisualGeometry.foodRadius(at: time)
+        expect(radius >= 0.159_999 && radius <= 0.440_001, "Food pulse leaves its cell or disappears")
+        expect(close(radius, SnakeVisualGeometry.foodRadius(at: time + 1.4)), "Food pulse is not periodic")
+        if radius < minimum.radius { minimum = (time, radius) }
+        if radius > maximum.radius { maximum = (time, radius) }
+    }
+    expect(maximum.radius - minimum.radius > 0.2, "Food pulse has no visible size change")
+    let small = frame(snake, time: minimum.time, food: food)
+    let large = frame(snake, time: maximum.time, food: food)
+    let smallArea = small.dots.filter { $0 == 2 }.count
+    let largeArea = large.dots.filter { $0 == 2 }.count
+    expect(smallArea > 0 && largeArea > smallArea, "Food size does not change in the actual raster")
+    expect(frame(snake, time: 0, food: food, reduced: true).dots == frame(snake, time: 10, food: food, reduced: true).dots,
+           "Reduced Motion does not freeze the fruit and body")
+    expect(frame(snake).dots.allSatisfy { $0 != 2 }, "Food remains after it was removed")
+}
+
+private func checkManyWrapsAndTranslation() {
+    // A unique path can wind horizontally many times before filling this torus.
+    // This catches renderers that only copy the whole path into nine tiles.
+    var snake: [GridCell] = []
+    for row in 0..<map.rows {
+        let start = (map.columns - row % map.columns) % map.columns
+        for step in 0..<map.columns { snake.append(GridCell(x: (start + step) % map.columns, y: row)) }
+    }
+    let original = frame(snake, time: 0.37)
+    checkFiniteAndLocal(original)
+    expect(original.centers.last!.x - original.centers.first!.x > Double(map.columns * 3), "Fixture does not cross enough seams")
+    let density = SnakeVisualGeometry.pixelsPerCell
+    for row in 0..<map.rows {
+        let range = (row * density * original.columns)..<((row + 1) * density * original.columns)
+        expect(original.dots[range].filter { $0 == 1 }.count > map.columns * 2, "A long wrapped body disappears in row \(row)")
+    }
+    let dx = 3, dy = 7
+    let translated = snake.map { GridCell(x: ($0.x + dx) % map.columns, y: ($0.y + dy) % map.rows) }
+    let shifted = frame(translated, time: 0.37)
+    for y in 0..<original.rows {
+        for x in 0..<original.columns {
+            let nextX = (x + dx * density) % original.columns
+            let nextY = (y + dy * density) % original.rows
+            expect(original.dots[y * original.columns + x] == shifted.dots[nextY * shifted.columns + nextX], "Raster is not toroidally translation invariant")
+        }
+    }
+}
+
+private func benchmark() {
+    var game = SnakeEngine(seed: 42)
+    while game.phase == .playing { game.step() }
+    for _ in 0..<5 { _ = frame(game.snake, time: 0.2) }
+    var times: [Double] = []
+    var checksum = 0
+    for index in 0..<180 {
+        let start = DispatchTime.now().uptimeNanoseconds
+        let result = frame(game.snake, time: Double(index) / 24)
+        times.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
+        checksum += result.dots[index % result.dots.count].hashValue & 1
+    }
+    times.sort()
+    print(String(format: "384-cell geometry, 180 frames: median %.3f ms; p95 %.3f ms; max %.3f ms (host only; checksum %d)",
+                 times[times.count / 2], times[Int(Double(times.count - 1) * 0.95)], times.last!, checksum))
+}
+
+@main
+private enum SnakeVisualChecks {
+    static func main() {
+        checkEndpointsAndGrowth()
+        checkWrapAndCorners()
+        checkAnatomyAndWaves()
+        checkFoodPulse()
+        checkManyWrapsAndTranslation()
+        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, wave, pulse, Reduced Motion, long paths and translation.")
+        if ProcessInfo.processInfo.arguments.contains("--benchmark") { benchmark() }
+    }
+}

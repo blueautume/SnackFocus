@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var session = SnakeSession()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsSettings = false
 
     var body: some View {
@@ -82,7 +83,12 @@ struct ContentView: View {
     }
 
     private func board(width: CGFloat) -> some View {
-        RetroBoard(engine: session.engine)
+        TimelineView(.animation(minimumInterval: 1 / 24, paused: !session.isRunning || reduceMotion)) { timeline in
+            let time = session.animationTime(at: timeline.date)
+            let progress = session.hasEnded ? 1 : min(1, max(0, (time - session.movementBeganAtElapsed) / session.moveDuration))
+            RetroBoard(engine: session.engine, previousSnake: session.previousSnake,
+                       progress: progress, time: time, reduceMotion: reduceMotion)
+        }
             .frame(width: width, height: width * 1.5)
             .overlay {
                 if session.hasEnded {
@@ -250,46 +256,38 @@ private struct PixelText: View {
 
 private struct RetroBoard: View {
     let engine: SnakeEngine
+    let previousSnake: [GridCell]
+    let progress: Double
+    let time: Double
+    let reduceMotion: Bool
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         Canvas { context, size in
-            let unit = size.width / CGFloat(engine.configuration.columns)
-            for cell in engine.snake {
-                let rect = CGRect(x: CGFloat(cell.x) * unit + 1, y: CGFloat(cell.y) * unit + 1,
-                                  width: unit - 2, height: unit - 2)
-                context.fill(Path(rect), with: .color(LCD.ink))
-            }
-            if let head = engine.snake.first, engine.snake.count > 1 {
-                let neck = engine.snake[1]
-                let dx = direction(head.x - neck.x, period: engine.configuration.columns)
-                let dy = direction(head.y - neck.y, period: engine.configuration.rows)
-                for side: CGFloat in [-1, 1] {
-                    let x = (CGFloat(head.x) + 0.5 + CGFloat(dx) * 0.19 - CGFloat(dy) * side * 0.18) * unit
-                    let y = (CGFloat(head.y) + 0.5 + CGFloat(dy) * 0.19 + CGFloat(dx) * side * 0.18) * unit
-                    context.fill(Path(CGRect(x: floor(x - 1), y: floor(y - 1), width: 2, height: 2)), with: .color(LCD.paper))
+            let frame = SnakeVisualGeometry.frame(
+                configuration: engine.configuration, snake: engine.snake, previousSnake: previousSnake,
+                food: engine.food, progress: progress, time: time, reduceMotion: reduceMotion
+            )
+            let pitch = size.width / CGFloat(frame.columns)
+            let dotSize = max(1 / displayScale, floor(pitch * displayScale * 0.90) / displayScale)
+            let inset = (pitch - dotSize) / 2
+            var pixels = Path()
+            for y in 0..<frame.rows {
+                for x in 0..<frame.columns where frame.dots[y * frame.columns + x] != 0 {
+                    let rect = CGRect(
+                        x: ((CGFloat(x) * pitch + inset) * displayScale).rounded() / displayScale,
+                        y: ((CGFloat(y) * pitch + inset) * displayScale).rounded() / displayScale,
+                        width: dotSize, height: dotSize
+                    )
+                    pixels.addRect(rect)
                 }
             }
-            if let food = engine.food {
-                let dot = max(2, floor(unit / 5))
-                let startX = CGFloat(food.x) * unit + (unit - 3 * dot) / 2
-                let startY = CGFloat(food.y) * unit + (unit - 3 * dot) / 2
-                for (x, y) in [(0, 0), (2, 0), (1, 1), (0, 2), (2, 2)] {
-                    let rect = CGRect(x: floor(startX + CGFloat(x) * dot), y: floor(startY + CGFloat(y) * dot),
-                                      width: dot, height: dot)
-                    context.fill(Path(rect), with: .color(LCD.ink))
-                }
-            }
+            context.fill(pixels, with: .color(LCD.ink))
         }
         .background(LCD.paper)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("自动贪吃蛇，无边界棋盘")
         .accessibilityValue("蛇身 \(engine.snake.count) 格，共 \(engine.configuration.cellCount) 格")
-    }
-
-    private func direction(_ delta: Int, period: Int) -> Int {
-        if delta > period / 2 { return delta - period }
-        if delta < -period / 2 { return delta + period }
-        return delta
     }
 }
 
