@@ -45,6 +45,13 @@ final class SnakeSession: ObservableObject {
             scheduleLoop()
         }
     }
+    @Published var strategy: SnakeStrategy = .dynamicCycle {
+        didSet {
+            guard strategy != oldValue else { return }
+            // A fresh body belongs to the selected strategy's initial cycle.
+            restart()
+        }
+    }
 
     var isRunning: Bool { hasStarted && !isPaused && !isInBackground && !hasEnded }
     var hasEnded: Bool { engine.phase != .playing }
@@ -60,18 +67,27 @@ final class SnakeSession: ObservableObject {
     private var holdsScreenAwake = false
 
     init() {
-        var initial = SnakeEngine()
+        let selectedStrategy: SnakeStrategy
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        selectedStrategy = arguments.contains("--snake-strategy-classic") ? .safeShortcuts : .dynamicCycle
+        #else
+        selectedStrategy = .dynamicCycle
+        #endif
+        strategy = selectedStrategy
+        var initial = SnakeEngine(strategy: selectedStrategy)
         #if DEBUG
         // Launch arguments are only a simulator inspection aid. A regular
         // launch, including every Release build, always starts a fresh game.
-        let arguments = ProcessInfo.processInfo.arguments
         let stopsBeforeLastBite = arguments.contains("--snake-preview-last-bite")
-        if arguments.contains("--snake-preview-filled") || arguments.contains("--snake-preview-near-full") || stopsBeforeLastBite {
-            initial = SnakeEngine(seed: 42)
+        let nearFull = arguments.contains("--snake-preview-near-full")
+        let midpoint = arguments.contains("--snake-preview-midpoint")
+        if arguments.contains("--snake-preview-filled") || nearFull || stopsBeforeLastBite || midpoint {
+            initial = SnakeEngine(seed: 42, strategy: selectedStrategy)
             let fillCompletely = arguments.contains("--snake-preview-filled")
             let target = fillCompletely ? initial.configuration.cellCount
                 : (stopsBeforeLastBite ? initial.configuration.cellCount - 1
-                   : Int(ceil(Double(initial.configuration.cellCount) * 0.95)))
+                   : Int(ceil(Double(initial.configuration.cellCount) * (nearFull ? 0.95 : 0.5))))
             let limit = initial.configuration.cellCount * initial.configuration.cellCount
                 + initial.configuration.cellCount
             while initial.phase == .playing && initial.steps < limit
@@ -123,7 +139,7 @@ final class SnakeSession: ObservableObject {
         activeStartedAt = nil
         elapsedBeforeActiveSegment = 0
         elapsedSeconds = 0
-        engine = SnakeEngine()
+        engine = SnakeEngine(strategy: strategy)
         previousSnake = engine.snake
         movementBeganAt = Date()
         moveDuration = speed.interval
