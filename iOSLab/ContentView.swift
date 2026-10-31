@@ -60,9 +60,10 @@ struct ContentView: View {
 
     private func setup(in size: CGSize) -> some View {
         let contentWidth = max(0, min(size.width, 660) - 40)
-        let thumbnailHeight = min(272, floor(max(0, contentWidth - 24) / 3 * 1.5))
-        let fixedHeight = 286 + thumbnailHeight * 2
-        let sectionGap = max(18, (size.height - fixedHeight) / 3)
+        let sectionGap: CGFloat = size.height < 700 ? 14 : 18
+        let maximumThumbnailHeight = min(240, floor(max(0, contentWidth - 24) / 3 * 1.5))
+        let reservedHeight: CGFloat = 356 + sectionGap * 4
+        let thumbnailHeight = min(maximumThumbnailHeight, max(108, floor((size.height - reservedHeight) / 2)))
         return VStack(alignment: .leading, spacing: 0) {
             header
             Spacer(minLength: sectionGap)
@@ -73,6 +74,14 @@ struct ContentView: View {
                     ForEach(SnakeMap.allCases) { map in
                         mapChoice(map, height: thumbnailHeight)
                     }
+                }
+            }
+            Spacer(minLength: sectionGap)
+
+            VStack(alignment: .leading, spacing: 12) {
+                PixelLabel(text: "选择蛇形态", size: 18)
+                HStack(spacing: 10) {
+                    ForEach(SnakeAppearance.allCases) { appearance in appearanceChoice(appearance) }
                 }
             }
             Spacer(minLength: sectionGap)
@@ -90,8 +99,20 @@ struct ContentView: View {
                     .frame(minHeight: 56)
             }
             .buttonStyle(PixelButtonStyle(emphasized: true))
-            .accessibilityLabel("按所选地图和速度开始游戏")
+            .accessibilityLabel("按所选地图、蛇形态和速度开始游戏")
         }
+    }
+
+    private func appearanceChoice(_ appearance: SnakeAppearance) -> some View {
+        let selected = appearance == session.selectedAppearance
+        return Button { session.selectAppearance(appearance) } label: {
+            PixelLabel(text: appearance.label, size: 18)
+                .frame(maxWidth: .infinity, minHeight: 52)
+        }
+        .buttonStyle(PixelChoiceStyle(selected: selected))
+        .accessibilityLabel("蛇形态，\(appearance.label)")
+        .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func mapChoice(_ map: SnakeMap, height: CGFloat) -> some View {
@@ -145,7 +166,7 @@ struct ContentView: View {
                     Button { session.requestRestart() } label: {
                         PixelLabel(text: "重开", size: 24)
                     }
-                    .accessibilityLabel("重开，需确认后返回地图选择")
+                    .accessibilityLabel("重开，需确认后返回开局选择")
                 }
                 .buttonStyle(PixelButtonStyle())
                 .padding(.bottom, 3)
@@ -177,7 +198,8 @@ struct ContentView: View {
             let time = session.animationTime(at: timeline.date)
             let progress = session.hasEnded ? 1 : min(1, max(0, (time - session.movementBeganAtElapsed) / session.moveDuration))
             RetroBoard(engine: session.engine, previousSnake: session.previousSnake,
-                       progress: progress, time: time, reduceMotion: reduceMotion)
+                       progress: progress, time: time, appearance: session.selectedAppearance,
+                       reduceMotion: reduceMotion)
         }
         .frame(width: width, height: width * CGFloat(session.engine.configuration.rows) / CGFloat(session.engine.configuration.columns))
         .overlay {
@@ -206,6 +228,7 @@ struct ContentView: View {
             }
             .buttonStyle(PixelButtonStyle())
             .frame(maxWidth: 170)
+            .accessibilityLabel("重开，直接返回开局选择，无需确认")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 25)
@@ -224,9 +247,7 @@ struct ContentView: View {
                 PixelLabel(text: "确认重开？", size: 24)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityFocused($restartTitleFocused)
-                PixelLabel(text: session.hasEnded
-                           ? "返回地图与速度选择。\n本次用时 \(timeText)"
-                           : "将结束本局，返回地图与速度选择。\n本次已用 \(timeText)", size: 12)
+                PixelLabel(text: "将结束本局，返回开局选择。\n本次已用 \(timeText)", size: 12)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 12) {
                     Button { session.cancelRestart() } label: {
@@ -302,6 +323,7 @@ private struct RetroBoard: View {
     let previousSnake: [GridCell]
     let progress: Double
     let time: Double
+    let appearance: SnakeAppearance
     let reduceMotion: Bool
     @Environment(\.displayScale) private var displayScale
 
@@ -310,7 +332,7 @@ private struct RetroBoard: View {
             let frame = SnakeVisualGeometry.frame(
                 configuration: engine.configuration, snake: engine.snake, previousSnake: previousSnake,
                 food: engine.food, progress: progress, time: time,
-                completedMoves: engine.steps, reduceMotion: reduceMotion
+                completedMoves: engine.steps, appearance: appearance, reduceMotion: reduceMotion
             )
             let pitch = size.width / CGFloat(frame.columns)
             let dotSize = max(1 / displayScale, floor(pitch * displayScale * 0.90) / displayScale)

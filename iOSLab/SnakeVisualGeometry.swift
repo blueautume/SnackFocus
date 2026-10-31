@@ -40,8 +40,21 @@ struct SnakeVisualFrame: Sendable {
     let foodRadius: Double
 }
 
-/// The outline is a stationary wave on the trail. Material scales move with the
-/// snake, following that wave, rather than running on a separate elapsed clock.
+enum SnakeAppearance: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case classic
+    case modern
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .classic: return "经典"
+        case .modern: return "现代"
+        }
+    }
+}
+
+/// Classic retains its stationary trail wave and material scales. Modern
+/// retains the original elapsed-time body sway, sharing the same pixel raster.
 enum SnakeVisualGeometry {
     static let pixelsPerCell = 7
     static let waveLength = 2.0
@@ -52,7 +65,12 @@ enum SnakeVisualGeometry {
 
     static func frame(configuration: SnakeConfiguration, snake: [GridCell], previousSnake: [GridCell],
                       food: GridCell?, progress: Double, time: Double, completedMoves: Int = 0,
-                      reduceMotion: Bool = false) -> SnakeVisualFrame {
+                      appearance: SnakeAppearance = .classic, reduceMotion: Bool = false) -> SnakeVisualFrame {
+        if appearance == .modern {
+            return modernFrame(configuration: configuration, snake: snake, previousSnake: previousSnake,
+                               food: food, progress: progress, time: time, completedMoves: completedMoves,
+                               reduceMotion: reduceMotion)
+        }
         let columns = configuration.columns * pixelsPerCell
         let rows = configuration.rows * pixelsPerCell
         let p = reduceMotion ? 1 : min(1, max(0, progress))
@@ -122,6 +140,84 @@ enum SnakeVisualGeometry {
                                 centers: centers, samples: samples, heading: heading,
                                 headCenter: headCenter, headHeading: headHeading, scales: scales,
                                 motionDistance: distance, foodRadius: radius)
+    }
+
+    /// Preserve the original ca75bcb presentation: the whole body sways on
+    /// elapsed time, with its original radius, taper, head and negative eyes.
+    private static func modernFrame(configuration: SnakeConfiguration, snake: [GridCell], previousSnake: [GridCell],
+                                    food: GridCell?, progress: Double, time: Double, completedMoves: Int,
+                                    reduceMotion: Bool) -> SnakeVisualFrame {
+        let p = reduceMotion ? 1 : min(1, max(0, progress))
+        let centers = interpolate(snake: snake, previous: previousSnake, progress: p, configuration: configuration)
+        let heading = centers.count > 1 ? (centers[0] - centers[1]).normalized : SnakeVisualPoint(x: 1, y: 0)
+        let samples = modernSamples(centers: centers, time: time, reduceMotion: reduceMotion)
+        var raster = SnakePixelRaster(configuration: configuration)
+        for sample in samples { raster.disc(center: sample.center, radius: sample.radius, value: 1) }
+        if let head = centers.first { raster.head(center: head + heading * 0.025, forward: heading) }
+        let bodyMask = raster.dots.map { $0 == 1 }
+        if let head = centers.first {
+            let normal = SnakeVisualPoint(x: -heading.y, y: heading.x)
+            for side in [-1.0, 1.0] {
+                raster.dot(at: head + heading * 0.14 + normal * (side * 0.18), value: 0)
+            }
+        }
+        let radius = foodRadius(at: time, reduceMotion: reduceMotion)
+        if let food {
+            raster.disc(center: SnakeVisualPoint(x: Double(food.x) + 0.5, y: Double(food.y) + 0.5),
+                        radius: radius, value: 2)
+        }
+        let moving = snake != previousSnake && !previousSnake.isEmpty
+            && snake.first.map { configuration.areNeighbors(previousSnake[0], $0) } == true
+        let moves = max(0, completedMoves)
+        let distance = moving ? max(0, Double(moves) - 1 + p) : Double(moves)
+        return SnakeVisualFrame(columns: raster.columns, rows: raster.rows, dots: raster.dots, bodyMask: bodyMask,
+                                centers: centers, samples: samples, heading: heading,
+                                headCenter: centers.first ?? SnakeVisualPoint(x: 0, y: 0), headHeading: heading,
+                                scales: [], motionDistance: distance, foodRadius: radius)
+    }
+
+    private static func modernSamples(centers: [SnakeVisualPoint], time: Double,
+                                    reduceMotion: Bool) -> [SnakeVisualSample] {
+        guard let head = centers.first else { return [] }
+        guard centers.count > 1 else {
+            return [SnakeVisualSample(center: head, radius: 0.24, bodyPosition: 0)]
+        }
+        var curve: [(point: SnakeVisualPoint, position: Double)] = [(head, 0)]
+        curve.reserveCapacity(centers.count * 8)
+        func line(from a: SnakeVisualPoint, to b: SnakeVisualPoint, start: Double, end: Double) {
+            for step in 1...4 {
+                let t = Double(step) / 4
+                curve.append((a * (1 - t) + b * t, start + (end - start) * t))
+            }
+        }
+        line(from: head, to: (head + centers[1]) * 0.5, start: 0, end: 0.5)
+        for index in 1..<(centers.count - 1) {
+            let a = (centers[index - 1] + centers[index]) * 0.5
+            let control = centers[index]
+            let b = (centers[index] + centers[index + 1]) * 0.5
+            for step in 1...8 {
+                let t = Double(step) / 8
+                let point = a * ((1 - t) * (1 - t)) + control * (2 * (1 - t) * t) + b * (t * t)
+                curve.append((point, Double(index) - 0.5 + t))
+            }
+        }
+        let last = centers.count - 1
+        line(from: (centers[last - 1] + centers[last]) * 0.5, to: centers[last],
+             start: Double(last) - 0.5, end: Double(last))
+        let taperLength = min(5, max(1.5, Double(last) * 0.45))
+        return curve.indices.map { index in
+            let item = curve[index]
+            let before = curve[max(0, index - 1)].point
+            let after = curve[min(curve.count - 1, index + 1)].point
+            let tangent = (after - before).normalized
+            let normal = SnakeVisualPoint(x: -tangent.y, y: tangent.x)
+            let remaining = max(0, Double(last) - item.position)
+            let headFade = min(1, item.position / 1.8)
+            let tailFade = min(1, 0.25 + remaining / 1.5)
+            let wave = reduceMotion ? 0 : 0.15 * headFade * tailFade * sin(item.position * 1.5 - time * 5.2)
+            let radius = max(0.035, 0.24 * pow(min(1, remaining / taperLength), 0.65))
+            return SnakeVisualSample(center: item.point + normal * wave, radius: radius, bodyPosition: item.position)
+        }
     }
 
     static func foodRadius(at time: Double, reduceMotion: Bool = false) -> Double {

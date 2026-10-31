@@ -22,11 +22,11 @@ private func distance(_ a: SnakeVisualPoint, _ b: SnakeVisualPoint) -> Double {
 
 private func frame(_ snake: [GridCell], previous: [GridCell]? = nil, progress: Double = 1,
                    time: Double = 0, food: GridCell? = nil, reduced: Bool = false,
-                   completedMoves: Int? = nil) -> SnakeVisualFrame {
+                   completedMoves: Int? = nil, appearance: SnakeAppearance = .classic) -> SnakeVisualFrame {
     let prior = previous ?? snake
     return SnakeVisualGeometry.frame(configuration: map, snake: snake, previousSnake: prior,
                                      food: food, progress: progress, time: time,
-                                     completedMoves: completedMoves ?? (prior == snake ? 0 : 1), reduceMotion: reduced)
+                                     completedMoves: completedMoves ?? (prior == snake ? 0 : 1), appearance: appearance, reduceMotion: reduced)
 }
 
 private func checkFiniteAndLocal(_ result: SnakeVisualFrame, configuration: SnakeConfiguration = map) {
@@ -445,6 +445,159 @@ private func checkMapTopologies() {
     }
 }
 
+// This catalog is also compiled independently against the original ca75bcb
+// geometry to obtain the golden rasters, without importing today's helpers.
+private struct AppearanceFixture {
+    let name: String
+    let configuration: SnakeConfiguration
+    let snake: [GridCell]
+    let previous: [GridCell]
+    let food: GridCell?
+    let progress: Double
+    let time: Double
+    let reduced: Bool
+
+    init(_ name: String, _ snake: [GridCell], previous: [GridCell]? = nil,
+         configuration: SnakeConfiguration = .firstMap, food: GridCell? = nil,
+         progress: Double = 1, time: Double = 0, reduced: Bool = false) {
+        self.name = name
+        self.configuration = configuration
+        self.snake = snake
+        self.previous = previous ?? snake
+        self.food = food
+        self.progress = progress
+        self.time = time
+        self.reduced = reduced
+    }
+}
+
+private func appearanceFixtures() -> [AppearanceFixture] {
+    let straight = (0..<10).map { GridCell(x: 12 - $0, y: 8) }
+    let before = [GridCell(x: 5, y: 5), GridCell(x: 4, y: 5), GridCell(x: 3, y: 5), GridCell(x: 2, y: 5)]
+    let moving = [GridCell(x: 6, y: 5)] + before.dropLast()
+    let growing = [GridCell(x: 6, y: 5)] + before
+    let seamBefore = [GridCell(x: 15, y: 8), GridCell(x: 14, y: 8), GridCell(x: 13, y: 8)]
+    let seamAfter = [GridCell(x: 0, y: 8), GridCell(x: 15, y: 8), GridCell(x: 14, y: 8)]
+    let cornerBefore = [GridCell(x: 15, y: 0), GridCell(x: 15, y: 23), GridCell(x: 15, y: 22), GridCell(x: 14, y: 22)]
+    let wallBefore = [GridCell(x: 1, y: 2), GridCell(x: 1, y: 3), GridCell(x: 2, y: 3), GridCell(x: 3, y: 3)]
+    var winding: [GridCell] = []
+    for y in 0..<24 {
+        let start = (16 - y % 16) % 16
+        for step in 0..<16 { winding.append(GridCell(x: (start + step) % 16, y: y)) }
+    }
+    return [
+        AppearanceFixture("straight-a", straight, time: 0.1),
+        AppearanceFixture("straight-b", straight, time: 0.6),
+        AppearanceFixture("reduced", straight, progress: 0.25, time: 10, reduced: true),
+        AppearanceFixture("moving-start", moving, previous: before, progress: 0, time: 0.37),
+        AppearanceFixture("moving-middle", moving, previous: before, progress: 0.5, time: 0.37),
+        AppearanceFixture("moving-end", moving, previous: before, time: 0.37),
+        AppearanceFixture("growing-early", growing, previous: before, progress: 0.125, time: 0.37),
+        AppearanceFixture("growing-middle", growing, previous: before, progress: 0.5, time: 0.37),
+        AppearanceFixture("growing-end", growing, previous: before, time: 0.37),
+        AppearanceFixture("horizontal-seam", seamAfter, previous: seamBefore, progress: 0.5, time: 0.2),
+        AppearanceFixture("two-axis-corner", [GridCell(x: 0, y: 0)] + cornerBefore.dropLast(), previous: cornerBefore, progress: 0.5, time: 0.43),
+        AppearanceFixture("wall-corner", [GridCell(x: 1, y: 1)] + wallBefore.dropLast(), previous: wallBefore,
+                          configuration: SnakeMap.courtyard.configuration, progress: 0.5, time: 0.37),
+        AppearanceFixture("long-multiple-wraps", winding, time: 0.37),
+        AppearanceFixture("small-food", straight, food: GridCell(x: 8, y: 15)),
+        AppearanceFixture("large-food", straight, food: GridCell(x: 8, y: 15), time: 0.7),
+        AppearanceFixture("reduced-food", straight, food: GridCell(x: 8, y: 15), time: 10, reduced: true),
+        AppearanceFixture("empty", []),
+        AppearanceFixture("one-cell", [GridCell(x: 1, y: 1)], time: 0.6)
+    ]
+}
+
+private func modernFrame(_ fixture: AppearanceFixture) -> SnakeVisualFrame {
+    SnakeVisualGeometry.frame(configuration: fixture.configuration, snake: fixture.snake, previousSnake: fixture.previous,
+                              food: fixture.food, progress: fixture.progress, time: fixture.time,
+                              completedMoves: 37, appearance: .modern, reduceMotion: fixture.reduced)
+}
+
+private func rasterHash(_ dots: [UInt8]) -> UInt64 {
+    dots.reduce(0xCBF29CE484222325) { ($0 ^ UInt64($1)) &* 0x100000001B3 }
+}
+
+private func checkModernBehavior() {
+    expect(SnakeAppearance.allCases.map(\.label) == ["经典", "现代"], "Appearance choices or labels changed")
+    let snake = (0..<10).map { GridCell(x: 12 - $0, y: 8) }
+    let early = frame(snake, time: 0.1, appearance: .modern)
+    let later = frame(snake, time: 0.6, appearance: .modern)
+    expect(early.centers == later.centers && early.heading == later.heading, "Modern animation changes logical anchors")
+    expect(zip(early.samples, later.samples).contains { distance($0.center, $1.center) > 0.03 }, "Modern body does not sway with elapsed time")
+    expect(early.bodyMask != later.bodyMask && early.dots != later.dots, "Modern whole-body wave does not reach the raster")
+    expect(early.headCenter == early.centers[0] && early.headHeading == early.heading && early.scales.isEmpty, "Modern appearance acquired classic sway or scales")
+    let reduced = frame(snake, time: 0.1, reduced: true, appearance: .modern)
+    let reducedLater = frame(snake, time: 100, reduced: true, appearance: .modern)
+    expect(reduced.dots == reducedLater.dots && reduced.bodyMask == reducedLater.bodyMask && sameSamples(reduced, reducedLater), "Modern Reduced Motion still animates")
+    for fixture in appearanceFixtures() {
+        let result = modernFrame(fixture)
+        checkFiniteAndLocal(result, configuration: fixture.configuration)
+        let density = SnakeVisualGeometry.pixelsPerCell
+        for wall in fixture.configuration.walls {
+            for y in 0..<density {
+                for x in 0..<density {
+                    let index = (wall.y * density + y) * result.columns + wall.x * density + x
+                    expect(!result.bodyMask[index] && result.dots[index] == 0, "Modern raster spills into a real wall")
+                }
+            }
+        }
+    }
+    let before = [GridCell(x: 5, y: 5), GridCell(x: 4, y: 5), GridCell(x: 3, y: 5), GridCell(x: 2, y: 5)]
+    let growing = [GridCell(x: 6, y: 5)] + before
+    for progress in [0.0, 0.5, 1.0] {
+        let result = frame(growing, previous: before, progress: progress, time: 0.37, appearance: .modern)
+        expect(result.centers.count == growing.count && close(result.centers[0].x, 5.5 + progress)
+               && close(result.centers.last!.x, 2.5), "Modern growth changed the original head/tail interpolation")
+    }
+    // Source-derived fixtures are supplemented with actual consecutive states
+    // on every obstacle map so the shared raster retains today's wall masks.
+    for map in SnakeMap.allCases {
+        var game = SnakeEngine(configuration: map.configuration, seed: 42)
+        let before = game.snake
+        game.step()
+        let fixture = AppearanceFixture(map.rawValue, game.snake, previous: before, configuration: map.configuration, progress: 0.5, time: 0.37)
+        let result = modernFrame(fixture)
+        checkFiniteAndLocal(result, configuration: map.configuration)
+        let density = SnakeVisualGeometry.pixelsPerCell
+        for wall in map.configuration.walls {
+            for y in 0..<density { for x in 0..<density {
+                let index = (wall.y * density + y) * result.columns + wall.x * density + x
+                expect(result.dots[index] == 0 && !result.bodyMask[index], "Modern snake crosses map walls")
+            } }
+        }
+    }
+}
+
+private func checkModernGoldenRasters() {
+    // Generated by independently compiling ca75bcb with the fixture catalog.
+    let expected: [UInt64] = [
+        9370632795737805272, // straight-a
+        8570509640291317058, // straight-b
+        10308911250418179574, // reduced
+        9694301604952292666, // moving-start
+        10231017567877669524, // moving-middle
+        11572095293383641332, // moving-end
+        10571101157123011483, // growing-early
+        13735504228264282009, // growing-middle
+        2214836453874683211, // growing-end
+        4989490125271167877, // horizontal-seam
+        3667029496880679291, // two-axis-corner
+        5315045117738430461, // wall-corner
+        4164677751938553151, // long-multiple-wraps
+        13871521514563730908, // small-food
+        3379045248915045501, // large-food
+        13337546295866168264, // reduced-food
+        6331361937516929317, // empty
+        17691176902789943427, // one-cell
+    ]
+    let fixtures = appearanceFixtures()
+    expect(fixtures.count == expected.count, "Legacy fixture catalog and golden hashes disagree")
+    for (fixture, expectedHash) in zip(fixtures, expected) {
+        expect(rasterHash(modernFrame(fixture).dots) == expectedHash, "Modern raster differs from ca75bcb: \(fixture.name)")
+    }
+}
+
 private func benchmark() {
     var game = SnakeEngine(seed: 42)
     while game.phase == .playing { game.step() }
@@ -472,7 +625,9 @@ private enum SnakeVisualChecks {
         checkFoodPulse()
         checkManyWrapsAndTranslation()
         checkMapTopologies()
-        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, stationary world wave, same-speed material, distance clock, pulse, Reduced Motion, long paths, translation and walls.")
+        checkModernBehavior()
+        checkModernGoldenRasters()
+        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, stationary world wave, same-speed material, distance clock, pulse, Reduced Motion, long paths, translation, walls and exact ca75bcb modern rasters.")
         if ProcessInfo.processInfo.arguments.contains("--benchmark") { benchmark() }
     }
 }

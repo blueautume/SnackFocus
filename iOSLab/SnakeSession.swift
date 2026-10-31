@@ -41,6 +41,7 @@ final class SnakeSession: ObservableObject {
     @Published private(set) var stage: SnakeSessionStage = .setup
     @Published private(set) var selectedMap: SnakeMap = .meadow
     @Published private(set) var selectedSpeed: SnakeSpeed = .steady
+    @Published private(set) var selectedAppearance: SnakeAppearance = .classic
     @Published private(set) var showsRestartConfirmation = false
     @Published private(set) var engine: SnakeEngine
     @Published private(set) var previousSnake: [GridCell]
@@ -67,6 +68,7 @@ final class SnakeSession: ObservableObject {
     init() {
         var initialMap = SnakeMap.meadow
         var initialSpeed = SnakeSpeed.steady
+        var initialAppearance = SnakeAppearance.classic
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if let argument = arguments.first(where: { $0.hasPrefix("--snake-map=") }),
@@ -77,9 +79,14 @@ final class SnakeSession: ObservableObject {
            let speed = SnakeSpeed(rawValue: String(argument.dropFirst("--snake-speed=".count))) {
             initialSpeed = speed
         }
+        if let argument = arguments.first(where: { $0.hasPrefix("--snake-appearance=") }),
+           let appearance = SnakeAppearance(rawValue: String(argument.dropFirst("--snake-appearance=".count))) {
+            initialAppearance = appearance
+        }
         #endif
         selectedMap = initialMap
         selectedSpeed = initialSpeed
+        selectedAppearance = initialAppearance
         var initial = SnakeEngine(configuration: initialMap.configuration)
         #if DEBUG
         // Only explicit Debug previews bypass setup. Release builds ignore all
@@ -137,6 +144,11 @@ final class SnakeSession: ObservableObject {
         moveDuration = speed.interval
     }
 
+    func selectAppearance(_ appearance: SnakeAppearance) {
+        guard stage == .setup else { return }
+        selectedAppearance = appearance
+    }
+
     func begin() {
         guard stage == .setup, !showsRestartConfirmation else { return }
         prepareGame()
@@ -170,6 +182,10 @@ final class SnakeSession: ObservableObject {
 
     func requestRestart() {
         guard stage != .setup, !showsRestartConfirmation else { return }
+        if stage == .finished {
+            returnToSetup()
+            return
+        }
         restartWasRunning = isRunning
         freezeElapsedTime()
         cancelLoop()
@@ -193,6 +209,10 @@ final class SnakeSession: ObservableObject {
 
     func confirmRestart() {
         guard showsRestartConfirmation else { return }
+        returnToSetup()
+    }
+
+    private func returnToSetup() {
         freezeElapsedTime()
         cancelLoop()
         showsRestartConfirmation = false
