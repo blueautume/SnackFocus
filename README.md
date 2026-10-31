@@ -6,16 +6,17 @@
 
 ## 打开项目
 
-用 Xcode 打开 [SnakeFocus.xcworkspace](SnakeFocus.xcworkspace)，选择 `iOSLab` scheme 和 iPhone 模拟器即可运行。工程名和 scheme 为 `iOSLab`，最低支持 iOS 17。
+用 Xcode 打开 [SnakeFocus.xcworkspace](SnakeFocus.xcworkspace)，选择 `SnakeFocus` scheme 和 iPhone 模拟器即可运行。工程名和 scheme 为 `SnakeFocus`，最低支持 iOS 17。
 
-应用名称、Bundle Identifier 和签名配置集中在 [Base.xcconfig](iOSLab/Configuration/Base.xcconfig)。真机运行时在 Xcode 中选择自己的开发团队。
+应用名称、Bundle Identifier 和签名配置集中在 [Base.xcconfig](SnakeFocus/Configuration/Base.xcconfig)。真机运行时在 Xcode 中选择自己的开发团队。
 
 ## 目录
 
-- `iOSLab/`：应用源码、图标、中文像素字体及许可证。
-- `iOSLab.xcodeproj/`：Xcode 工程和共享 scheme。
+- `SnakeFocus/`：应用源码、图标、中文像素字体及许可证。
+- `SnakeFocus.xcodeproj/`：Xcode 工程和共享 scheme。
 - `Tests/`、`Scripts/`：引擎、视觉与估时验证，以及模拟生成器。
 - [Docs/AutonomousSnake.md](Docs/AutonomousSnake.md)：玩法、算法、地图、速度与验证说明。
+- [Docs/Branding.md](Docs/Branding.md)：应用图标资源和生成提示词。
 - [Docs/SnakeDurationSimulation.json](Docs/SnakeDurationSimulation.json)：六图每图 256 局的原始模拟步数、墙格和四档估时。
 - [Docs/References](Docs/References/README.md)：用户提供的经典地图、蛇形态截图与原始录屏。
 - [Docs/Previews](Docs/Previews/README.md)：按开发阶段归档的截图、录屏和动画预览。
@@ -35,7 +36,7 @@ Scripts/check-snake-visuals.sh
 模拟器构建：
 
 ```sh
-xcodebuild -workspace SnakeFocus.xcworkspace -scheme iOSLab \
+xcodebuild -workspace SnakeFocus.xcworkspace -scheme SnakeFocus \
   -configuration Debug -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath /tmp/snakefocus-build \

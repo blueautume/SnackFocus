@@ -31,7 +31,7 @@
 
 表中表示样本中间约 80% 的常见区间，不是保证的上下限、固定计时器或系统闹钟。随机食物、暂停和设备调度可能改变实际用时。手机只读取预先生成的数据，不临时跑模拟。新增禅意档直接用同一批已记录步数换算，保留原始模拟时间、来源与每局样本，无需重新运行引擎。
 
-- 生产表：[SnakeDurationEstimates.swift](../iOSLab/SnakeDurationEstimates.swift)
+- 生产表：[SnakeDurationEstimates.swift](../SnakeFocus/SnakeDurationEstimates.swift)
 - 原始每局步数、种子、分位数及源码哈希：[SnakeDurationSimulation.json](SnakeDurationSimulation.json)
 - 重现模拟并更新表：Scripts/estimate-snake-duration.sh --write
 - 快速完整性 / 过期检查：Scripts/check-snake-duration-estimates.sh
@@ -60,7 +60,7 @@
 - 仅互通轴取模，墙轴直接插值并裁剪；微像素还按墙格裁切，蛇身与花纹不会渗入障碍。长蛇多次穿边不会产生跨屏连线。
 - 渲染先固定完整路径 `[新头] + 上一步蛇身` 的控制点，再裁剪头尾；中段使用每格 8 个固定采样点，只有两端局部连接随移动伸缩。设完整路径参数为 u、已完成逻辑步数为 n，波形相位使用 u − n；跨 tick 时两者同步增加一，中段世界位置和微像素轮廓保持稳定。花纹固定在距头的材料坐标上，沿当前波浪位置取样，随头前进而流动。
 - 选择页、按钮、休息提示、确认框统一使用中文像素字体、矩形边框、反色选择、硬像素投影和按下位移。没有系统 sheet、alert 或原生 Picker。
-- 字体为 [Fusion Pixel](https://github.com/TakWolf/fusion-pixel-font) 12px 等宽简体中文原版，版本 2026.10.25，SIL OFL 1.1。字体与完整许可随应用打包，来源及校验值见 iOSLab/Fonts/FusionPixel/README.txt。
+- 字体为 [Fusion Pixel](https://github.com/TakWolf/fusion-pixel-font) 12px 等宽简体中文原版，版本 2026.10.25，SIL OFL 1.1。字体与完整许可随应用打包，来源及校验值见 SnakeFocus/Fonts/FusionPixel/README.txt。
 - VoiceOver 读出地图、蛇形态、速度档、估时及正确墙体拓扑。确认时后层控件同时禁用并从无障碍树隐藏，焦点进入弹层。窄屏 / 横屏可纵向滚动。
 
 ## 验证
@@ -83,7 +83,7 @@
     Scripts/check-snake-visuals.sh
     Scripts/check-snake-duration-estimates.sh
 
-    xcodebuild -project iOSLab.xcodeproj -scheme iOSLab \
+    xcodebuild -project SnakeFocus.xcodeproj -scheme SnakeFocus \
       -configuration Debug -sdk iphonesimulator \
       -destination 'generic/platform=iOS Simulator' \
       CODE_SIGNING_ALLOWED=NO build

@@ -67,7 +67,7 @@ private enum SnakeDurationEstimateChecks {
             throw CheckFailure(description: "Expected the project root argument")
         }
         let root = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-        let source = try Data(contentsOf: root.appendingPathComponent("iOSLab/SnakeEngine.swift"))
+        let source = try Data(contentsOf: root.appendingPathComponent("SnakeFocus/SnakeEngine.swift"))
         let sourceHash = SHA256.hash(data: source).map { String(format: "%02x", $0) }.joined()
         let report = try JSONDecoder().decode(DurationReport.self, from:
             Data(contentsOf: root.appendingPathComponent("Docs/SnakeDurationSimulation.json")))

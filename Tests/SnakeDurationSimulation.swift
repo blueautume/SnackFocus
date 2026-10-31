@@ -153,7 +153,7 @@ private enum SnakeDurationSimulation {
         json.append(0x0A)
         if let writeRoot {
             let jsonURL = writeRoot.appendingPathComponent("Docs/SnakeDurationSimulation.json")
-            let swiftURL = writeRoot.appendingPathComponent("iOSLab/SnakeDurationEstimates.swift")
+            let swiftURL = writeRoot.appendingPathComponent("SnakeFocus/SnakeDurationEstimates.swift")
             try json.write(to: jsonURL, options: .atomic)
             try makeSwift(report).write(to: swiftURL, atomically: true, encoding: .utf8)
             let note = "Wrote production estimates and raw simulation report (\(String(format: "%.2f", Date().timeIntervalSince(started)))s).\n"
