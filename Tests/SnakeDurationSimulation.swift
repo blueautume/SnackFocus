@@ -48,6 +48,7 @@ private struct SimulationReport: Codable {
     let seedFormula: String
     let quantileMethod: String
     let durationMethod: String
+    let speedEstimatesProvenance: String
     let checkedInvariants: [String]
     let maps: [MapSimulation]
 }
@@ -65,7 +66,7 @@ private enum SimulationError: Error, CustomStringConvertible {
 
 @main
 private enum SnakeDurationSimulation {
-    private static let speedValues: [Double] = [6, 10, 16]
+    private static let speedValues: [Double] = [4, 6, 10, 16]
 
     static func main() {
         do { try run() }
@@ -136,6 +137,7 @@ private enum SnakeDurationSimulation {
             seedFormula: "UInt64(index) &* 0x9E3779B97F4A7C15 &+ 0xD1B54A32D192ED03; index starts at 0",
             quantileMethod: "nearest-rank: sortedSteps[max(0, ceil(percentile * sampleCount) - 1)]",
             durationMethod: "logicalMoves / actualMovesPerSecond / 60; lower=floor(P10), typical=round(P50), upper=ceil(P90), minimum 1 minute; pauses and scheduling delays excluded",
+            speedEstimatesProvenance: "Minute estimates at 4, 6, 10 and 16 moves/second are conversions of this report's stepsBySeedIndex samples; simulation timestamps, compiler, source commit and engine hash describe the raw engine simulation.",
             checkedInvariants: [
                 "every logical move stays inside the selected map",
                 "head, food and the complete body are excluded from the exact recorded wall cells",

@@ -3,6 +3,7 @@ import Foundation
 import UIKit
 
 enum SnakeSpeed: String, CaseIterable, Identifiable, Sendable {
+    case zen
     case calm
     case steady
     case flow
@@ -11,14 +12,16 @@ enum SnakeSpeed: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
+        case .zen: return "禅意"
         case .calm: return "舒缓"
-        case .steady: return "适用"
+        case .steady: return "适中"
         case .flow: return "激进"
         }
     }
 
     var movesPerSecond: Double {
         switch self {
+        case .zen: return 4
         case .calm: return 6
         case .steady: return 10
         case .flow: return 16
@@ -40,7 +43,7 @@ enum SnakeSessionStage: Equatable, Sendable {
 final class SnakeSession: ObservableObject {
     @Published private(set) var stage: SnakeSessionStage = .setup
     @Published private(set) var selectedMap: SnakeMap = .meadow
-    @Published private(set) var selectedSpeed: SnakeSpeed = .steady
+    @Published private(set) var selectedSpeed: SnakeSpeed = .calm
     @Published private(set) var selectedAppearance: SnakeAppearance = .classic
     @Published private(set) var showsRestartConfirmation = false
     @Published private(set) var engine: SnakeEngine
@@ -50,7 +53,7 @@ final class SnakeSession: ObservableObject {
     @Published private(set) var isInBackground = false
     @Published private(set) var movementBeganAt = Date()
     @Published private(set) var movementBeganAtElapsed: TimeInterval = 0
-    @Published private(set) var moveDuration: Double = SnakeSpeed.steady.interval
+    @Published private(set) var moveDuration: Double = SnakeSpeed.calm.interval
     var speed: SnakeSpeed { selectedSpeed }
     var isRunning: Bool { stage == .playing && !isPaused && !isInBackground && !showsRestartConfirmation }
     var hasEnded: Bool { stage == .finished }
@@ -67,7 +70,7 @@ final class SnakeSession: ObservableObject {
 
     init() {
         var initialMap = SnakeMap.meadow
-        var initialSpeed = SnakeSpeed.steady
+        var initialSpeed = SnakeSpeed.calm
         var initialAppearance = SnakeAppearance.classic
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments

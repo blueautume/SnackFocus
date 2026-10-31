@@ -258,7 +258,7 @@ private func checkStationaryWaveAndMaterialMotion() {
                    "\(fixture.name): time adds extra outline or material motion")
         }
         expect(changedTexture, "\(fixture.name): fixed middle contour has no passing material texture")
-        for speed in [6.0, 10.0, 16.0] {
+        for speed in [4.0, 6.0, 10.0, 16.0] {
             let result = fixture.render(1.375, speed: speed)
             let baseline = fixture.render(1.375)
             expect(result.dots == baseline.dots && sameSamples(result, baseline) && sameScales(result, baseline), "Speed changes geometry at the same traveled distance")

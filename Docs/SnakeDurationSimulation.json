@@ -30,6 +30,12 @@
       "sampleCount" : 256,
       "speedEstimates" : [
         {
+          "lowerMinutes" : 142,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 149,
+          "upperMinutes" : 156
+        },
+        {
           "lowerMinutes" : 94,
           "movesPerSecond" : 6,
           "typicalMinutes" : 99,
@@ -329,6 +335,12 @@
       "rows" : 24,
       "sampleCount" : 256,
       "speedEstimates" : [
+        {
+          "lowerMinutes" : 92,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 97,
+          "upperMinutes" : 103
+        },
         {
           "lowerMinutes" : 61,
           "movesPerSecond" : 6,
@@ -933,6 +945,12 @@
       "sampleCount" : 256,
       "speedEstimates" : [
         {
+          "lowerMinutes" : 99,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 104,
+          "upperMinutes" : 110
+        },
+        {
           "lowerMinutes" : 66,
           "movesPerSecond" : 6,
           "typicalMinutes" : 70,
@@ -1488,6 +1506,12 @@
       "sampleCount" : 256,
       "speedEstimates" : [
         {
+          "lowerMinutes" : 101,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 107,
+          "upperMinutes" : 113
+        },
+        {
           "lowerMinutes" : 67,
           "movesPerSecond" : 6,
           "typicalMinutes" : 71,
@@ -2026,6 +2050,12 @@
       "rows" : 24,
       "sampleCount" : 256,
       "speedEstimates" : [
+        {
+          "lowerMinutes" : 68,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 72,
+          "upperMinutes" : 76
+        },
         {
           "lowerMinutes" : 45,
           "movesPerSecond" : 6,
@@ -2806,6 +2836,12 @@
       "sampleCount" : 256,
       "speedEstimates" : [
         {
+          "lowerMinutes" : 68,
+          "movesPerSecond" : 4,
+          "typicalMinutes" : 72,
+          "upperMinutes" : 76
+        },
+        {
           "lowerMinutes" : 45,
           "movesPerSecond" : 6,
           "typicalMinutes" : 48,
@@ -3574,5 +3610,6 @@
   "sampleCountPerMap" : 256,
   "schemaVersion" : 2,
   "seedFormula" : "UInt64(index) &* 0x9E3779B97F4A7C15 &+ 0xD1B54A32D192ED03; index starts at 0",
-  "sourceCommitAtSimulation" : "d0382481197c5ec04856081fcb3f0f6f10b09a2d"
+  "sourceCommitAtSimulation" : "d0382481197c5ec04856081fcb3f0f6f10b09a2d",
+  "speedEstimatesProvenance" : "Speed estimates at 4, 6, 10 and 16 moves/second were derived from the unchanged stored stepsBySeedIndex samples; no new engine games were simulated for this speed-catalog update. Simulation timestamps, compiler, engine hash and source commit retain their original raw-simulation provenance."
 }

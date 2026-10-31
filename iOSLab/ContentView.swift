@@ -137,7 +137,8 @@ struct ContentView: View {
         return Button { session.selectSpeed(speed) } label: {
             VStack(spacing: 8) {
                 PixelLabel(text: speed.label, size: 18)
-                PixelLabel(text: "\(estimate.lowerMinutes)-\(estimate.upperMinutes) 分钟", size: 12)
+                PixelLabel(text: "\(estimate.lowerMinutes)-\(estimate.upperMinutes)分", size: 12)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 80)
             .padding(.horizontal, 3)

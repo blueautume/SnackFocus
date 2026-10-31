@@ -81,15 +81,19 @@ private enum SnakeDurationEstimateChecks {
         let mapIDs = SnakeMap.allCases.map(\.rawValue)
         try require(mapIDs.count == 6 && Set(report.maps.map(\.id)) == Set(mapIDs) && report.maps.count == mapIDs.count,
                     "Report does not match the six shipping maps")
-        let speeds = SnakeSpeed.allCases.map(\.movesPerSecond).sorted()
-        try require(speeds == [6, 10, 16], "The three shipping speeds changed; regenerate and review the estimates")
+        let speedOptions = SnakeSpeed.allCases
+        let speeds = speedOptions.map(\.movesPerSecond)
+        try require(speedOptions.map(\.rawValue) == ["zen", "calm", "steady", "flow"]
+                    && speedOptions.map(\.label) == ["禅意", "舒缓", "适中", "激进"]
+                    && speeds == [4, 6, 10, 16],
+                    "The four shipping speed options, labels or order changed; regenerate and review the estimates")
         for map in SnakeMap.allCases {
             guard let record = report.maps.first(where: { $0.id == map.rawValue }) else {
                 throw CheckFailure(description: "Missing map \(map.rawValue)")
             }
             try check(map: map, record: record, sampleCount: report.sampleCountPerMap, speeds: speeds)
         }
-        print("Duration estimates passed: exact engine hash, six 16×24 maps with exact wall cells, \(report.sampleCountPerMap) samples/map, raw quantiles and all three production speeds.")
+        print("Duration estimates passed: exact engine hash, six 16×24 maps with exact wall cells, \(report.sampleCountPerMap) samples/map, raw quantiles and all four production speeds.")
     }
 
     private static func check(map: SnakeMap, record: MapRecord, sampleCount: Int, speeds: [Double]) throws {
@@ -126,8 +130,8 @@ private enum SnakeDurationEstimateChecks {
         let production = SnakeDurationEstimates.stepQuantiles(for: map)
         try require(production.lower == p10 && production.typical == p50 && production.upper == p90 && production.samples == sampleCount,
                     "\(context): production constants differ from simulated percentiles")
-        try require(record.speedEstimates.map(\.movesPerSecond).sorted() == speeds,
-                    "\(context): simulation must describe all three actual speeds")
+        try require(record.speedEstimates.map(\.movesPerSecond) == speeds,
+                    "\(context): simulation must describe all four actual speeds in selection order")
         var previous: SnakeDurationEstimate?
         for speed in speeds {
             guard let stored = record.speedEstimates.first(where: { $0.movesPerSecond == speed }) else {
