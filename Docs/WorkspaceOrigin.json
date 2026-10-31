@@ -1,0 +1,346 @@
+{
+  "workspace": "SnakeFocus",
+  "source_repository": "/Users/lihao/code/Xcode/icloudlab",
+  "source_branch": "experiment/snake-stationary-wave",
+  "source_commit": "5eb186d20a80095bf40f46079913b608e45cc128",
+  "copied_at": "2026-10-31T23:26:17+08:00",
+  "copy_method": "Independent single-branch Git clone via local transport (--no-local --no-tags); origin removed; current branch renamed main.",
+  "source_files": [
+    {
+      "path": ".gitignore",
+      "sha256": "8f78d92cdcfdf58f0375da9506eb40e290ee5daef206a69b75e06c1d6fd25424"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "ca67829c3d51813dd46109bd0bea4489266dbc5620117e44e2c3b32dbe03bb09"
+    },
+    {
+      "path": "Docs/AutonomousSnake.md",
+      "sha256": "7f3ce5765a3dba01be72a3b603758d07cc1c96e13aa25da0fbec0f0a1e0f98ad"
+    },
+    {
+      "path": "Docs/SnakeDurationSimulation.json",
+      "sha256": "fbec5e8d32b2be4601ad2d1891d317d106d8c2e8e02d6bf98da3147b0fe6fb74"
+    },
+    {
+      "path": "README.md",
+      "sha256": "5f2e0706bacc4c29b8e659a5f25e7ab9b389bec4d37f610da87b6973ce4d595f"
+    },
+    {
+      "path": "Scripts/check-snake-duration-estimates.sh",
+      "sha256": "830ed937647689260349605ce81674e6c5092d96374a1c56a9cb50c4baa76215"
+    },
+    {
+      "path": "Scripts/check-snake-visuals.sh",
+      "sha256": "07ef99dbf215fbe5f2e15a40c2ea91b6f0edd459df6291d77aabf7ef78300478"
+    },
+    {
+      "path": "Scripts/check-snake.sh",
+      "sha256": "ab473b435ebff5e8d03c60f4645e34384a8735b9062d18d4381f39b3c44bd76e"
+    },
+    {
+      "path": "Scripts/estimate-snake-duration.sh",
+      "sha256": "4ade318dfd3a424faac3ea2930b7f5f8379755bb756c421f59c008a817072b9a"
+    },
+    {
+      "path": "Tests/SnakeDurationEstimateChecks.swift",
+      "sha256": "236d989aa389647755e6978bf4dfa3e723db657ff91388f01be734f4586c2185"
+    },
+    {
+      "path": "Tests/SnakeDurationSimulation.swift",
+      "sha256": "d2a600ce7ba59940e3e054459edd8d0f6e60a49710f37d1ea24ec3023d819b52"
+    },
+    {
+      "path": "Tests/SnakeEngineChecks.swift",
+      "sha256": "5de4990503658c29bd1b4507c8240d4ab7302a46c871822c76f677377f15eb01"
+    },
+    {
+      "path": "Tests/SnakeVisualChecks.swift",
+      "sha256": "1182dee061d11dd2f069772bf0b437791d6134b492ce10a9b01e9776d861de0a"
+    },
+    {
+      "path": "iOSLab.xcodeproj/project.pbxproj",
+      "sha256": "45e80bb466f7376b9d2a4bdacc86f3e1d37adfae89f30406515d475a1f720aa1"
+    },
+    {
+      "path": "iOSLab.xcodeproj/xcshareddata/xcschemes/iOSLab.xcscheme",
+      "sha256": "7d9025dd16c2098715e780d9dde602d5ff8d1f83f94a337dbc5925bc2d18c49b"
+    },
+    {
+      "path": "iOSLab/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "sha256": "ac9b250e10c57e9eb34052326f2ea8a62bc10b1c8c68c004ffc1cc76ae24b90d"
+    },
+    {
+      "path": "iOSLab/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+      "sha256": "b3f51e4f08a416c8128f400ceaaa420a074db790a541de464ca8622df2f92ef5"
+    },
+    {
+      "path": "iOSLab/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "sha256": "a31b99ed056451c67b3ddccb171532febba17000a1a5577bad34a735a7e9ead6"
+    },
+    {
+      "path": "iOSLab/Assets.xcassets/Contents.json",
+      "sha256": "10e3b5dc202f1cd9fad1f688c8fc9fe9e9669bf3f8295e67d216b10fd99b6f49"
+    },
+    {
+      "path": "iOSLab/Configuration/Base.xcconfig",
+      "sha256": "dc4f28322e475778667bda85b1eb22bbd4d2eeef4a6bc4bf15ddbab2aac14052"
+    },
+    {
+      "path": "iOSLab/Configuration/Debug.xcconfig",
+      "sha256": "c62ec2b994a50fee72482ee792dd9bb877e23dd2ccd5e8e8b94762f123ecf6ed"
+    },
+    {
+      "path": "iOSLab/Configuration/Release.xcconfig",
+      "sha256": "333bb6c5d95d3953377fd65bcf22ae46519f655570dc0c1d876ff19325ed9bce"
+    },
+    {
+      "path": "iOSLab/ContentView.swift",
+      "sha256": "8fa3d2658a4262580724bf1be835af196bf345f9cde03b77f73993c42b112575"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/LICENSES/ark-pixel/OFL.txt",
+      "sha256": "3ab41567e68e3988ba1ef16dd2644eca95ca5648ea12e7d46e6287fc0bbe5aee"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/LICENSES/cubic-11/OFL.txt",
+      "sha256": "bdd640c94530f5845de621089875aefcaec17585dbd4dab191c97118539bf92f"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/LICENSES/galmuri/LICENSE.txt",
+      "sha256": "86a3ee9495f942f0243f18c103da9faca27adb88142613edb8bb852e56c892c1"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/OFL.txt",
+      "sha256": "bc518cf64b8032c07690f33cc270c35c179255a6ac8efa7c165ebae7e8f76a63"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/README.txt",
+      "sha256": "4e3b9564144b04daf0fafd91f6fa3eea4ac80f4dc52fc248c702519b763d527a"
+    },
+    {
+      "path": "iOSLab/Fonts/FusionPixel/fusion-pixel-12px-monospaced-zh_hans.otf",
+      "sha256": "2e63342fd51ba29831406c8ad8fc919868de0c9dc9277d3a11614a5bc7a26907"
+    },
+    {
+      "path": "iOSLab/Info.plist",
+      "sha256": "03351eb3be48a6b0e84d208735ec94b9ee9185a0fafb188c27729c337736951e"
+    },
+    {
+      "path": "iOSLab/PixelInterface.swift",
+      "sha256": "5fc26c2994fafb17fe191702685a39d50602c4f26fef7f48faeaf6b0d9bbd8ed"
+    },
+    {
+      "path": "iOSLab/SnakeDurationEstimates.swift",
+      "sha256": "7e120b32c1ca60c254080323f40d3c18c4e8ef1c6ce0db5269ac43fb096327fe"
+    },
+    {
+      "path": "iOSLab/SnakeEngine.swift",
+      "sha256": "86b6d4e3a863a7d022222ad837bcab1993dc9dd091dd9b6b0ed60111afd681d3"
+    },
+    {
+      "path": "iOSLab/SnakeSession.swift",
+      "sha256": "1a3634abfc270e437c5aee3bce485d8a3a8f2fce492d8e146a7b010c7bc7c612"
+    },
+    {
+      "path": "iOSLab/SnakeVisualGeometry.swift",
+      "sha256": "8871639eeecb091adbf48cbeec418db74aa0b62384dbdc591e99dfaccbf542f0"
+    },
+    {
+      "path": "iOSLab/iOSLabApp.swift",
+      "sha256": "357ae62be463769c3a06f1f1db19bd53dfdf8c25eb0a90de3bc2ef2833005d45"
+    }
+  ],
+  "copied_materials": [
+    {
+      "path": "Docs/References/snake-xenzia-original.png",
+      "source_name": "codex-clipboard-4ed01916-862f-40cb-a810-ea3bf6e13bad.png",
+      "kind": "user reference",
+      "sha256": "167bab41bea024e9fc7ec02a8a025356c7102d3cfcf7ad891b043f7807ab0150"
+    },
+    {
+      "path": "Docs/References/snake-ii-classic-maps.png",
+      "source_name": "codex-clipboard-42a04f4c-9c24-4ccf-83b6-0f790cd45ef7.png",
+      "kind": "user reference",
+      "sha256": "ba9ae80c3cb0de30cd5aca3b48c04f603022d6a994e2a5ce0d82bd20ed7157ad"
+    },
+    {
+      "path": "Docs/References/classic-wave-shape.png",
+      "source_name": "codex-clipboard-343830fb-7282-430d-9274-68f0a2f27ef1.png",
+      "kind": "user reference",
+      "sha256": "80ca2757f93293d35d2df02b2d7e3385874ca5fc679cf04d6829e39821f1508c"
+    },
+    {
+      "path": "Docs/References/snake-xenzia-recording.mp4",
+      "source_name": "ScreenRecording_10-31-2026 20-21-47_1.MP4",
+      "kind": "user reference video",
+      "sha256": "1d321bf067b156b3fe3cb94890f937ea2c66d0a38082ce257a41cfad69876aa8"
+    },
+    {
+      "path": "Docs/References/recording-motion-detail.png",
+      "source_name": "detail.png",
+      "kind": "extracted reference frames",
+      "sha256": "fcbbab7577fafd50368f59e9c04e097316d0b850da220093482a0be087dcf991"
+    },
+    {
+      "path": "Docs/References/recording-keyframe.png",
+      "source_name": "frame-3.png",
+      "kind": "extracted reference frame",
+      "sha256": "535eae010a3d9895e6302588fc9fced02c4165aed3cce1a213279e1ba466c5ae"
+    },
+    {
+      "path": "Docs/Previews/rest.png",
+      "source_name": "rest.png",
+      "kind": "historical generated preview",
+      "sha256": "da7a765af111d6c11fedec7969bcac1f74d32c963e3a8e624a6bd4d5e7f3111b"
+    },
+    {
+      "path": "Docs/Previews/running.png",
+      "source_name": "running.png",
+      "kind": "historical generated preview",
+      "sha256": "9a25c60b9f300adfd995e8931f884bb267d5edfce7b0377e63eb2b2438b3ad4f"
+    },
+    {
+      "path": "Docs/Previews/snake-anatomy.mp4",
+      "source_name": "snake-anatomy.mp4",
+      "kind": "historical generated preview",
+      "sha256": "0be9ff4541d8022ea7f667de898562299f090ab3c892f534cbab9c7a4295aa77"
+    },
+    {
+      "path": "Docs/Previews/snake-anatomy.png",
+      "source_name": "snake-anatomy.png",
+      "kind": "historical generated preview",
+      "sha256": "c6239f70d26c2877d14ebfa0e5804aacf23e58a5794433e8842a7963f5c7179b"
+    },
+    {
+      "path": "Docs/Previews/snake-appearance-selection.png",
+      "source_name": "snake-appearance-selection.png",
+      "kind": "historical generated preview",
+      "sha256": "c2784c354af36936a9165d6102881da8534c7587ccaca61bea7a0bb3c425b75a"
+    },
+    {
+      "path": "Docs/Previews/snake-classic-setup.png",
+      "source_name": "snake-classic-setup.png",
+      "kind": "historical generated preview",
+      "sha256": "c907a05b1ba5238c77ac9981e6fdc72197e4b80304dba35fa9c0af59756b77e0"
+    },
+    {
+      "path": "Docs/Previews/snake-motion.mp4",
+      "source_name": "snake-motion.mp4",
+      "kind": "historical generated preview",
+      "sha256": "8eae11ebe9060dd47ea18c8f9f1341f3dccaec59d8ff9465e3dd6c3f85846530"
+    },
+    {
+      "path": "Docs/Previews/snake-near-full.png",
+      "source_name": "snake-near-full.png",
+      "kind": "historical generated preview",
+      "sha256": "88b29184bf0a4ebb88f6533379bc6489e2a24cb713d287c2021849f8ba0294e3"
+    },
+    {
+      "path": "Docs/Previews/snake-restart-confirmation.png",
+      "source_name": "snake-restart-confirmation.png",
+      "kind": "historical generated preview",
+      "sha256": "35d716e2302d71ed858453a7030c13c4164da2b2b07bdf5f6b04090db38044ad"
+    },
+    {
+      "path": "Docs/Previews/snake-setup.png",
+      "source_name": "snake-setup.png",
+      "kind": "historical generated preview",
+      "sha256": "24188d4a650b102343ef35f4d256b57f15537eddebcd298a0781c1955dfad398"
+    },
+    {
+      "path": "Docs/Previews/snake-stationary-wave-00.png",
+      "source_name": "snake-stationary-wave-00.png",
+      "kind": "historical generated preview",
+      "sha256": "076061d128e8567b08ca027edee4073cbefa1faccf46b6698e2b9fed833f4be5"
+    },
+    {
+      "path": "Docs/Previews/snake-stationary-wave-14.png",
+      "source_name": "snake-stationary-wave-14.png",
+      "kind": "historical generated preview",
+      "sha256": "6307c780cfdc573e9e4b207386bc1302050a96a7b636eb39c95fe65dcc10ab36"
+    },
+    {
+      "path": "Docs/Previews/snake-stationary-wave-27.png",
+      "source_name": "snake-stationary-wave-27.png",
+      "kind": "historical generated preview",
+      "sha256": "cc986ba3ae4fda2a2d0cba18a17645c91d87e950d2d10cf128f655f79dd7b33e"
+    },
+    {
+      "path": "Docs/Previews/snake-stationary-wave.gif",
+      "source_name": "snake-stationary-wave.gif",
+      "kind": "historical generated preview",
+      "sha256": "0bf7f4bd19bd4791317d0e629ce144cc7cb937f0b3aeb2959b246a65a549be73"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-flow.gif",
+      "source_name": "snake-texture-flow.gif",
+      "kind": "historical generated preview",
+      "sha256": "c6b3d249074c0bbb3b45223fc7ad2fd0f2ec7141c0954006e9a6a93477146f2f"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-0.png",
+      "source_name": "snake-texture-phase-0.png",
+      "kind": "historical generated preview",
+      "sha256": "37a5176fd3413620d243e26327081ab74c2f8dbc6a5944a268db4370fd1abaf9"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-1.png",
+      "source_name": "snake-texture-phase-1.png",
+      "kind": "historical generated preview",
+      "sha256": "118a977e7529f35668d76fd0728b74e1a0be39e36b7fdadcd28b32e41b930f76"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-2.png",
+      "source_name": "snake-texture-phase-2.png",
+      "kind": "historical generated preview",
+      "sha256": "b77bdf5fa55b7147d0eb2b8be31f888ee3982d8cf1497fa58e92e5fe77c176bf"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-3.png",
+      "source_name": "snake-texture-phase-3.png",
+      "kind": "historical generated preview",
+      "sha256": "8662dc316945a11cb75a95d202a119ef75c6af8d603cb5e7b9873a93f34e4e18"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-4.png",
+      "source_name": "snake-texture-phase-4.png",
+      "kind": "historical generated preview",
+      "sha256": "d36efd19fec017f457661c0e24fa73f480cb8f2662f9eaac3fb4170cbbcee05d"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-5.png",
+      "source_name": "snake-texture-phase-5.png",
+      "kind": "historical generated preview",
+      "sha256": "c63ea5a6eed6f2e340e339a2a80f0473af4a28b75dae6b9644801ccd86b9eeda"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-6.png",
+      "source_name": "snake-texture-phase-6.png",
+      "kind": "historical generated preview",
+      "sha256": "62e0144a1fca1ee0d2be0b6e55904736740ce68fc8c956ba2506593b4b09047a"
+    },
+    {
+      "path": "Docs/Previews/snake-texture-phase-7.png",
+      "source_name": "snake-texture-phase-7.png",
+      "kind": "historical generated preview",
+      "sha256": "5cf4255b22e37e2076abf87ccc1d7aa22ffb6601a5428b2375974459787c400a"
+    },
+    {
+      "path": "Docs/Previews/xenzia-dynamic.png",
+      "source_name": "xenzia-dynamic.png",
+      "kind": "historical generated preview",
+      "sha256": "06706391d2fff23bee493f86c8637647b0e627f063e2dd0027783196895ac072"
+    },
+    {
+      "path": "Docs/Previews/xenzia-rest.png",
+      "source_name": "xenzia-rest.png",
+      "kind": "historical generated preview",
+      "sha256": "9260e26430ba957d436ee0ece95a0da35ced4b1e81f9ae3dac1b5a946f4ada84"
+    }
+  ],
+  "intentional_workspace_adaptations": [
+    "README.md",
+    "AGENTS.md"
+  ]
+}

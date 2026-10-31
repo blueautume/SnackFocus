@@ -1,11 +1,12 @@
-# iOS Lab
+# SnakeFocus
 
-- Project and scheme: `iOSLab`. The entry point is `iOSLab/iOSLabApp.swift`; the blank view is `iOSLab/ContentView.swift`.
-- `main` is the runnable blank template. The `blank-canvas` tag identifies the original starting commit.
-- For each new feature experiment, create a local `experiment/<descriptive-name>` branch from `main`, never from another experiment branch. Continue on an existing experiment branch when the user requests work on that experiment.
-- Keep experiment code, dependencies, capabilities and permissions in its own branch. Do not merge feature experiments into `main` unless explicitly requested.
-- Before switching branches, inspect the working tree and preserve existing changes. Never discard changes to make switching easier.
-- The base app is a white screen with no feature code, extra permissions or entitlements. Keep shared-template changes minimal.
-- App identity and signing live in `iOSLab/Configuration/Base.xcconfig`. Add experiment-specific identity only when necessary for that experiment.
-- Validate source or project changes with an appropriate simulator build. The main template has no behavior requiring a test target.
+- This is the dedicated, independent SnakeFocus workspace. `main` contains the runnable snake app.
+- Xcode workspace: `SnakeFocus.xcworkspace`. Project and scheme: `iOSLab`.
+- Entry point: `iOSLab/iOSLabApp.swift`. Main UI: `iOSLab/ContentView.swift`.
+- Keep app code, assets, fonts, documentation and validation scripts self-contained in this repository.
+- App identity and signing are configured in `iOSLab/Configuration/Base.xcconfig`.
+- Preserve uncommitted changes before switching branches. Create branches according to the user's request.
+- Validate source or project changes with an appropriate simulator build. Run the relevant checks in `Scripts/` when changing engine, rendering or duration estimates.
+- Preserve the original simulation samples and provenance. When the engine changes, regenerate duration estimates with `Scripts/estimate-snake-duration.sh --write`.
+- `Docs/References` contains user-supplied references; `Docs/Previews` contains historical development previews.
 - After completing and validating work, create a local Git commit without waiting for an additional request. Do not push unless requested.
