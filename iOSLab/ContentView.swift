@@ -309,7 +309,8 @@ private struct RetroBoard: View {
         Canvas { context, size in
             let frame = SnakeVisualGeometry.frame(
                 configuration: engine.configuration, snake: engine.snake, previousSnake: previousSnake,
-                food: engine.food, progress: progress, time: time, reduceMotion: reduceMotion
+                food: engine.food, progress: progress, time: time,
+                completedMoves: engine.steps, reduceMotion: reduceMotion
             )
             let pitch = size.width / CGFloat(frame.columns)
             let dotSize = max(1 / displayScale, floor(pitch * displayScale * 0.90) / displayScale)

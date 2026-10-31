@@ -21,15 +21,20 @@ private func distance(_ a: SnakeVisualPoint, _ b: SnakeVisualPoint) -> Double {
 }
 
 private func frame(_ snake: [GridCell], previous: [GridCell]? = nil, progress: Double = 1,
-                   time: Double = 0, food: GridCell? = nil, reduced: Bool = false) -> SnakeVisualFrame {
-    SnakeVisualGeometry.frame(configuration: map, snake: snake, previousSnake: previous ?? snake,
-                              food: food, progress: progress, time: time, reduceMotion: reduced)
+                   time: Double = 0, food: GridCell? = nil, reduced: Bool = false,
+                   completedMoves: Int? = nil) -> SnakeVisualFrame {
+    let prior = previous ?? snake
+    return SnakeVisualGeometry.frame(configuration: map, snake: snake, previousSnake: prior,
+                                     food: food, progress: progress, time: time,
+                                     completedMoves: completedMoves ?? (prior == snake ? 0 : 1), reduceMotion: reduced)
 }
 
 private func checkFiniteAndLocal(_ result: SnakeVisualFrame, configuration: SnakeConfiguration = map) {
     expect(result.columns == configuration.columns * SnakeVisualGeometry.pixelsPerCell, "Wrong raster width")
     expect(result.rows == configuration.rows * SnakeVisualGeometry.pixelsPerCell, "Wrong raster height")
-    expect(result.dots.count == result.columns * result.rows, "Incomplete raster")
+    expect(result.dots.count == result.columns * result.rows && result.bodyMask.count == result.dots.count, "Incomplete raster or body mask")
+    expect(result.headCenter.x.isFinite && result.headCenter.y.isFinite && close(result.headHeading.length, 1), "Invalid presented head")
+    expect(result.motionDistance.isFinite && result.motionDistance >= 0, "Invalid motion distance")
     expect(result.dots.allSatisfy { $0 <= 2 }, "Unknown raster value")
     expect(result.heading.x.isFinite && result.heading.y.isFinite, "Nonfinite heading")
     expect(close(result.heading.length, 1), "Heading is not a direction")
@@ -146,27 +151,156 @@ private func enclosedEyePixels(in cell: GridCell, raster: SnakeVisualFrame) -> I
     return enclosed
 }
 
-private func checkAnatomyAndWaves() {
+private func sameSamples(_ a: SnakeVisualFrame, _ b: SnakeVisualFrame) -> Bool {
+    a.samples.count == b.samples.count && zip(a.samples, b.samples).allSatisfy {
+        $0.center == $1.center && close($0.radius, $1.radius) && close($0.bodyPosition, $1.bodyPosition)
+    }
+}
+
+private func sameScales(_ a: SnakeVisualFrame, _ b: SnakeVisualFrame) -> Bool {
+    a.scales.count == b.scales.count && zip(a.scales, b.scales).allSatisfy {
+        $0.center == $1.center && close($0.bodyPosition, $1.bodyPosition)
+    }
+}
+
+private func checkAnatomyAndMotionClock() {
     let snake = (0..<10).map { GridCell(x: 12 - $0, y: 8) }
     let still = frame(snake, reduced: true)
-    expect(rowSpan(in: snake[0], raster: still) > rowSpan(in: snake[2], raster: still), "Head is not broader than the body")
-    expect(rowSpan(in: snake.last!, raster: still) < rowSpan(in: snake[2], raster: still), "Tail is not visibly thinner")
+    // Compare an actual cross-section at a wave crest, not the entire cell's
+    // wave envelope, which can span more rows than the wider head itself.
+    let crest = still.samples.min { abs($0.bodyPosition - 2.5) < abs($1.bodyPosition - 2.5) }!
+    let density = SnakeVisualGeometry.pixelsPerCell
+    let column = Int(floor(crest.center.x * Double(density)))
+    let rows = (0..<still.rows).filter { still.dots[$0 * still.columns + column] == 1 }
+    let bodyWidth = rows.last! - rows.first! + 1
+    expect(rowSpan(in: snake[0], raster: still) > bodyWidth, "Head is not broader than the local body cross-section")
+    expect(rowSpan(in: snake.last!, raster: still) < bodyWidth, "Tail is not visibly thinner")
     expect(enclosedEyePixels(in: snake[0], raster: still) >= 2, "Head has no distinct pair of eyes")
     expect(still.samples.last!.radius < still.samples.first!.radius * 0.4, "Tail does not taper to a point")
     let tailSamples = still.samples.filter { $0.bodyPosition >= 5 }
     for pair in zip(tailSamples, tailSamples.dropFirst()) {
         expect(pair.1.radius <= pair.0.radius + 0.000_001, "Tail widens toward its tip")
     }
-    let first = frame(snake, time: 0.1)
-    let later = frame(snake, time: 0.6)
-    expect(first.samples.count == still.samples.count && first.samples.count == later.samples.count, "Animation changes sampling topology")
-    expect(first.samples[0].center == still.samples[0].center, "Wave moves the head off its logical anchor")
-    expect(zip(first.samples, later.samples).contains { distance($0.center, $1.center) > 0.03 }, "Body does not undulate over time")
-    for (moving, base) in zip(first.samples, still.samples) {
-        expect(distance(moving.center, base.center) <= 0.17, "Wave escapes its narrow logical corridor")
-    }
+    let first = frame(snake, time: 0.1, completedMoves: 7)
+    let later = frame(snake, time: 90, completedMoves: 7)
+    expect(first.dots == later.dots && first.bodyMask == later.bodyMask && first.centers == later.centers
+           && first.headCenter == later.headCenter && first.headHeading == later.headHeading
+           && sameSamples(first, later) && sameScales(first, later), "Paused distance still runs a time-based snake animation")
+    expect(close(first.motionDistance, 7), "Static previous=current loses completed motion distance")
     let reducedLater = frame(snake, progress: 0.25, time: 10, reduced: true)
-    expect(still.dots == reducedLater.dots, "Reduced Motion retains a running animation")
+    expect(still.dots == reducedLater.dots && sameSamples(still, reducedLater), "Reduced Motion retains a running animation")
+}
+
+private struct MotionFixture {
+    let name: String
+    let route: [GridCell]
+    let headIndex: Int
+    let length: Int
+    let x: Range<Int>
+    let y: Range<Int>
+
+    func body(at head: Int) -> [GridCell] {
+        stride(from: head, through: head - length + 1, by: -1).map { route[$0] }
+    }
+
+    func render(_ travel: Double, speed: Double = 10, time: Double? = nil) -> SnakeVisualFrame {
+        let tick = Int(floor(travel)) + 1
+        return frame(body(at: headIndex + tick), previous: body(at: headIndex + tick - 1),
+                     progress: travel - floor(travel), time: time ?? travel / speed, completedMoves: tick)
+    }
+
+    func region(in raster: SnakeVisualFrame) -> [Int] {
+        y.flatMap { row in x.map { row * raster.columns + $0 } }
+    }
+}
+
+private func sampleCenter(in raster: SnakeVisualFrame, at position: Double) -> SnakeVisualPoint? {
+    for (a, b) in zip(raster.samples, raster.samples.dropFirst()) where a.bodyPosition <= position && position <= b.bodyPosition {
+        let length = b.bodyPosition - a.bodyPosition
+        let fraction = length > 0 ? (position - a.bodyPosition) / length : 0
+        return a.center * (1 - fraction) + b.center * fraction
+    }
+    return nil
+}
+
+private func checkStationaryWaveAndMaterialMotion() {
+    let density = SnakeVisualGeometry.pixelsPerCell
+    let straight = MotionFixture(name: "straight", route: (0...15).map { GridCell(x: $0, y: 5) },
+                                 headIndex: 11, length: 12, x: (9*density)..<(10*density), y: (4*density)..<(7*density))
+    let route = (3...13).reversed().map { GridCell(x: $0, y: 16) }
+        + (10...15).reversed().map { GridCell(x: 3, y: $0) }
+        + (4...13).map { GridCell(x: $0, y: 10) }
+    let corner = MotionFixture(name: "middle U-turn", route: route, headIndex: 22, length: 22,
+                               x: (2*density)..<(5*density), y: (10*density)..<(15*density))
+    let travels = [0.0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+    for fixture in [straight, corner] {
+        let frames = travels.map { fixture.render($0) }
+        let first = frames[0]
+        let region = fixture.region(in: first)
+        expect(region.contains { first.bodyMask[$0] } && region.contains { !first.bodyMask[$0] }, "Stationary ROI must include outline and background")
+        var changedTexture = false
+        for (travel, result) in zip(travels, frames) {
+            checkFiniteAndLocal(result)
+            expect(close(result.motionDistance, travel), "\(fixture.name): motion distance doesn't follow actual steps/progress")
+            expect(region.allSatisfy { first.bodyMask[$0] == result.bodyMask[$0] }, "\(fixture.name): middle wave outline drifts while the snake advances")
+            changedTexture = changedTexture || region.contains { first.dots[$0] != result.dots[$0] }
+            for scale in result.scales {
+                guard let attached = sampleCenter(in: result, at: scale.bodyPosition) else { fatalError("Scale outside visible wave samples") }
+                expect(distance(attached, scale.center) < 0.012, "\(fixture.name): material scale detaches from the wave")
+                let x = Int(floor(scale.center.x * Double(density)))
+                let y = Int(floor(scale.center.y * Double(density)))
+                let index = ((y % result.rows + result.rows) % result.rows) * result.columns + (x % result.columns + result.columns) % result.columns
+                expect(result.bodyMask[index] && result.dots[index] == 0, "Scale metadata doesn't identify an actual interior cutout")
+            }
+            let late = fixture.render(travel, time: 123)
+            expect(result.dots == late.dots && result.bodyMask == late.bodyMask && sameSamples(result, late)
+                   && sameScales(result, late) && result.headCenter == late.headCenter && result.headHeading == late.headHeading,
+                   "\(fixture.name): time adds extra outline or material motion")
+        }
+        expect(changedTexture, "\(fixture.name): fixed middle contour has no passing material texture")
+        for speed in [6.0, 10.0, 16.0] {
+            let result = fixture.render(1.375, speed: speed)
+            let baseline = fixture.render(1.375)
+            expect(result.dots == baseline.dots && sameSamples(result, baseline) && sameScales(result, baseline), "Speed changes geometry at the same traveled distance")
+        }
+        // A completed tick, its static snapshot, and the next tick at p=0 all
+        // share one middle world wave. Endpoint corrections are intentionally
+        // excluded from this ROI; they adapt only the head and tail locally.
+        let current = fixture.body(at: fixture.headIndex + 1)
+        let previous = fixture.body(at: fixture.headIndex)
+        let next = fixture.body(at: fixture.headIndex + 2)
+        let end = frame(current, previous: previous, progress: 1, completedMoves: 1)
+        let snapshot = frame(current, completedMoves: 1)
+        let begin = frame(next, previous: current, progress: 0, completedMoves: 2)
+        for result in [end, snapshot, begin] {
+            expect(close(result.motionDistance, 1), "Tick boundary changes motion distance")
+            expect(region.allSatisfy { end.bodyMask[$0] == result.bodyMask[$0] }, "Tick/static boundary jumps the middle wave phase")
+        }
+    }
+    let start = straight.render(0)
+    let end = straight.render(3)
+    var paired = 0
+    for scale in start.scales where scale.bodyPosition > 2 && scale.bodyPosition < 6 {
+        guard let next = end.scales.first(where: { close($0.bodyPosition, scale.bodyPosition) }) else { continue }
+        paired += 1
+        expect(close(next.center.x - scale.center.x, 3), "Material scale outruns or lags three actual head moves")
+        for (value, travel) in [(scale, 0.0), (next, 3.0)] {
+            let expectedY = 5.5 + 0.16 * sin((value.bodyPosition - travel) * .pi)
+            expect(close(value.center.y, expectedY), "Material does not follow the stationary wave at its new world position")
+        }
+    }
+    expect(paired > 0, "Fixture has no surviving material identities at both endpoints")
+    let middleY = start.samples.filter { $0.bodyPosition > 1.25 && $0.bodyPosition < 6 }.map { $0.center.y }
+    expect(middleY.max()! - middleY.min()! > 0.25, "The fixed middle contour has no visible wave")
+    var sways: [Double] = []
+    for result in travels.map({ straight.render($0) }) {
+        let delta = result.headCenter - result.centers[0]
+        expect(abs(delta.x) < 0.000_001 && delta.length <= 0.040_001, "Head sway moves forward or exceeds its small lateral range")
+        let dot = result.heading.x * result.headHeading.x + result.heading.y * result.headHeading.y
+        expect(dot > 0.98, "Presented head rotates away from its travel direction")
+        sways.append(delta.y)
+    }
+    expect(sways.min()! < -0.025 && sways.max()! > 0.025, "Head does not gently sway to both sides while advancing")
 }
 
 private func checkFoodPulse() {
@@ -223,7 +357,7 @@ private func checkManyWrapsAndTranslation() {
 
 private func checkMapTopologies() {
     let density = SnakeVisualGeometry.pixelsPerCell
-    func render(_ configuration: SnakeConfiguration, before: [GridCell], after: [GridCell], progress: Double) -> SnakeVisualFrame {
+    func render(_ configuration: SnakeConfiguration, before: [GridCell], after: [GridCell], progress: Double, completedMoves: Int = 1) -> SnakeVisualFrame {
         // Fixtures obey the selected map's actual rules; no test manufactures
         // an illegal jump through a wall just to exercise interpolation.
         for body in [before, after] {
@@ -234,13 +368,13 @@ private func checkMapTopologies() {
         }
         expect(configuration.areNeighbors(before[0], after[0]), "Fixture head crosses a wall")
         let result = SnakeVisualGeometry.frame(configuration: configuration, snake: after,
-                                               previousSnake: before, food: nil, progress: progress, time: 0.37)
+                                               previousSnake: before, food: nil, progress: progress, time: 0.37, completedMoves: completedMoves)
         checkFiniteAndLocal(result, configuration: configuration)
         for wall in configuration.walls {
             for y in 0..<density {
                 for x in 0..<density {
-                    expect(result.dots[(wall.y * density + y) * result.columns + wall.x * density + x] == 0,
-                           "Animated snake pixels spill into an occupied wall cell")
+                    let index = (wall.y * density + y) * result.columns + wall.x * density + x
+                    expect(result.dots[index] == 0 && !result.bodyMask[index], "Animated snake mask or pixels spill into a wall cell")
                 }
             }
         }
@@ -299,14 +433,14 @@ private func checkMapTopologies() {
             let before = game.snake
             game.step()
             for progress in [0.0, 0.5, 1.0] {
-                _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress)
+                _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress, completedMoves: game.steps)
             }
         }
         while game.phase == .playing && game.snake.count < game.configuration.cellCount / 2 { game.step() }
         let before = game.snake
         game.step()
         for progress in [0.0, 0.25, 0.5, 0.75, 1.0] {
-            _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress)
+            _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress, completedMoves: game.steps)
         }
     }
 }
@@ -333,11 +467,12 @@ private enum SnakeVisualChecks {
     static func main() {
         checkEndpointsAndGrowth()
         checkWrapAndCorners()
-        checkAnatomyAndWaves()
+        checkAnatomyAndMotionClock()
+        checkStationaryWaveAndMaterialMotion()
         checkFoodPulse()
         checkManyWrapsAndTranslation()
         checkMapTopologies()
-        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, wave, pulse, Reduced Motion, long paths, translation and independent map boundaries.")
+        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, stationary world wave, same-speed material, distance clock, pulse, Reduced Motion, long paths, translation and walls.")
         if ProcessInfo.processInfo.arguments.contains("--benchmark") { benchmark() }
     }
 }
