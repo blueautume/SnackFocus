@@ -236,6 +236,14 @@ private func checkMapTopologies() {
         let result = SnakeVisualGeometry.frame(configuration: configuration, snake: after,
                                                previousSnake: before, food: nil, progress: progress, time: 0.37)
         checkFiniteAndLocal(result, configuration: configuration)
+        for wall in configuration.walls {
+            for y in 0..<density {
+                for x in 0..<density {
+                    expect(result.dots[(wall.y * density + y) * result.columns + wall.x * density + x] == 0,
+                           "Animated snake pixels spill into an occupied wall cell")
+                }
+            }
+        }
         for point in result.centers {
             if !configuration.wrapsHorizontally {
                 expect(point.x >= 0.5 && point.x <= Double(configuration.columns) - 0.5, "Interpolation left a horizontal wall")
@@ -248,18 +256,18 @@ private func checkMapTopologies() {
     }
 
     let walls = SnakeMap.courtyard.configuration
-    let wallBefore = [GridCell(x: 0, y: 1), GridCell(x: 0, y: 2), GridCell(x: 1, y: 2), GridCell(x: 2, y: 2)]
-    let wallAfter = [GridCell(x: 0, y: 0)] + wallBefore.dropLast()
+    let wallBefore = [GridCell(x: 1, y: 2), GridCell(x: 1, y: 3), GridCell(x: 2, y: 3), GridCell(x: 3, y: 3)]
+    let wallAfter = [GridCell(x: 1, y: 1)] + wallBefore.dropLast()
     for progress in [0.0, 0.5, 1.0] {
         let result = render(walls, before: wallBefore, after: wallAfter, progress: progress)
-        expect(close(result.centers[0].y, 1.5 - progress), "Head doesn't approach the wall directly")
+        expect(close(result.centers[0].y, 2.5 - progress), "Head doesn't approach the wall directly")
         for index in result.dots.indices where result.dots[index] == 1 {
             expect(index % result.columns / density < 5 && index / result.columns / density < 5,
                    "Walled body is mirrored to the opposite edge")
         }
     }
 
-    let passage = SnakeMap.passage.configuration
+    let passage = SnakeConfiguration(columns: 16, rows: 24, wrapsHorizontally: true, wrapsVertically: false)
     let passageBefore = [GridCell(x: 15, y: 0), GridCell(x: 14, y: 0), GridCell(x: 13, y: 0), GridCell(x: 13, y: 1)]
     let passageAfter = [GridCell(x: 0, y: 0)] + passageBefore.dropLast()
     let horizontal = render(passage, before: passageBefore, after: passageAfter, progress: 0.5)
@@ -287,12 +295,18 @@ private func checkMapTopologies() {
     // and interpolation use each map's dimensions and boundary topology.
     for selectedMap in SnakeMap.allCases {
         var game = SnakeEngine(configuration: selectedMap.configuration, seed: 42)
-        for _ in 0..<24 {
+        for _ in 0..<96 {
             let before = game.snake
             game.step()
             for progress in [0.0, 0.5, 1.0] {
                 _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress)
             }
+        }
+        while game.phase == .playing && game.snake.count < game.configuration.cellCount / 2 { game.step() }
+        let before = game.snake
+        game.step()
+        for progress in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress)
         }
     }
 }

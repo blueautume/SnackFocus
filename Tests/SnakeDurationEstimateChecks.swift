@@ -14,6 +14,10 @@ private struct MapRecord: Decodable {
     let title: String
     let columns: Int
     let rows: Int
+    let boardCellCount: Int
+    let playableCellCount: Int
+    let wallCount: Int
+    let walls: [WallRecord]
     let wrapsHorizontally: Bool
     let wrapsVertically: Bool
     let sampleCount: Int
@@ -26,6 +30,11 @@ private struct MapRecord: Decodable {
     let meanSteps: Double
     let stepsBySeedIndex: [Int]
     let speedEstimates: [SpeedRecord]
+}
+
+private struct WallRecord: Decodable {
+    let x: Int
+    let y: Int
 }
 
 private struct SpeedRecord: Decodable {
@@ -62,15 +71,16 @@ private enum SnakeDurationEstimateChecks {
         let sourceHash = SHA256.hash(data: source).map { String(format: "%02x", $0) }.joined()
         let report = try JSONDecoder().decode(DurationReport.self, from:
             Data(contentsOf: root.appendingPathComponent("Docs/SnakeDurationSimulation.json")))
-        try require(report.schemaVersion == 1, "Unsupported report schema")
+        try require(report.schemaVersion == 2 && report.schemaVersion == SnakeDurationEstimates.simulationSchemaVersion,
+                    "Unsupported report schema")
         try require(report.engineSHA256 == sourceHash && SnakeDurationEstimates.engineSHA256 == sourceHash,
                     "Engine changed; regenerate with Scripts/estimate-snake-duration.sh --write")
         try require(report.sampleCountPerMap >= 256 && report.sampleCountPerMap == SnakeDurationEstimates.sampleCountPerMap,
                     "Sample count must be at least 256 and match production data")
         try require(report.quantileMethod.hasPrefix("nearest-rank:"), "Unexpected percentile convention")
         let mapIDs = SnakeMap.allCases.map(\.rawValue)
-        try require(mapIDs.count == 4 && Set(report.maps.map(\.id)) == Set(mapIDs) && report.maps.count == mapIDs.count,
-                    "Report does not match the four shipping maps")
+        try require(mapIDs.count == 6 && Set(report.maps.map(\.id)) == Set(mapIDs) && report.maps.count == mapIDs.count,
+                    "Report does not match the six shipping maps")
         let speeds = SnakeSpeed.allCases.map(\.movesPerSecond).sorted()
         try require(speeds == [6, 10, 16], "The three shipping speeds changed; regenerate and review the estimates")
         for map in SnakeMap.allCases {
@@ -79,13 +89,22 @@ private enum SnakeDurationEstimateChecks {
             }
             try check(map: map, record: record, sampleCount: report.sampleCountPerMap, speeds: speeds)
         }
-        print("Duration estimates passed: exact engine hash, four map topologies, \(report.sampleCountPerMap) samples/map, raw quantiles and all three production speeds.")
+        print("Duration estimates passed: exact engine hash, six 16×24 maps with exact wall cells, \(report.sampleCountPerMap) samples/map, raw quantiles and all three production speeds.")
     }
 
     private static func check(map: SnakeMap, record: MapRecord, sampleCount: Int, speeds: [Double]) throws {
         let configuration = map.configuration
         let context = map.rawValue
+        let reportedWalls = record.walls.map { GridCell(x: $0.x, y: $0.y) }
+        try require(configuration.columns == 16 && configuration.rows == 24,
+                    "\(context): all shipping maps must retain the same 16×24 board")
         try require(record.title == map.title && record.columns == configuration.columns && record.rows == configuration.rows
+                    && record.boardCellCount == configuration.boardCellCount
+                    && record.playableCellCount == configuration.cellCount
+                    && record.wallCount == configuration.walls.count
+                    && reportedWalls.count == record.wallCount && Set(reportedWalls) == configuration.walls
+                    && Set(reportedWalls).count == reportedWalls.count
+                    && record.playableCellCount + record.wallCount == record.boardCellCount
                     && record.wrapsHorizontally == configuration.wrapsHorizontally
                     && record.wrapsVertically == configuration.wrapsVertically,
                     "\(context): map geometry or topology differs from the simulation")

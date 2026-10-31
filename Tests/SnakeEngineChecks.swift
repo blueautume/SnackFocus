@@ -8,7 +8,8 @@ private func expect(_ condition: @autoclosure () -> Bool, _ message: @autoclosur
 /// Deliberately independent of the production distance/neighbor helpers.
 private func adjacent(_ a: GridCell, _ b: GridCell, on map: SnakeConfiguration) -> Bool {
     guard a.x >= 0, a.x < map.columns, a.y >= 0, a.y < map.rows,
-          b.x >= 0, b.x < map.columns, b.y >= 0, b.y < map.rows else { return false }
+          b.x >= 0, b.x < map.columns, b.y >= 0, b.y < map.rows,
+          !map.walls.contains(a), !map.walls.contains(b) else { return false }
     let dx = abs(a.x - b.x)
     let dy = abs(a.y - b.y)
     return (dy == 0 && (dx == 1 || (map.wrapsHorizontally && dx == map.columns - 1)))
@@ -32,6 +33,7 @@ private func checkBodyOrder(_ engine: SnakeEngine) {
 
 private func checkCycle(_ engine: SnakeEngine) {
     let map = engine.configuration
+    expect(engine.cycle.allSatisfy { !map.walls.contains($0) }, "Cycle includes a wall")
     expect(engine.cycle.count == map.cellCount && Set(engine.cycle).count == map.cellCount, "Cycle is not spanning and unique")
     for (index, cell) in engine.cycle.enumerated() {
         expect((0..<map.columns).contains(cell.x) && (0..<map.rows).contains(cell.y), "Cycle outside board")
@@ -41,7 +43,7 @@ private func checkCycle(_ engine: SnakeEngine) {
 }
 
 private func edgeSetsDiffer(_ before: [GridCell], _ after: [GridCell], on map: SnakeConfiguration) -> Bool {
-    var ranks = [Int](repeating: 0, count: map.cellCount)
+    var ranks = [Int](repeating: -1, count: map.boardCellCount)
     for (rank, cell) in before.enumerated() { ranks[cell.y * map.columns + cell.x] = rank }
     for index in after.indices {
         let a = after[index]
@@ -62,9 +64,20 @@ private func checkTopology(_ map: SnakeConfiguration) {
             expect(map.areNeighbors(cell, other) == adjacent(cell, other, on: map), "Adjacency helper does not match topology")
         }
     }
-    expect(!map.contains(GridCell(x: -1, y: 0)) && !map.contains(GridCell(x: 0, y: map.rows)), "Contains accepted an outside cell")
-    expect(map.resolved(GridCell(x: -1, y: 0)) == (map.wrapsHorizontally ? GridCell(x: map.columns - 1, y: 0) : nil), "Horizontal boundary resolution wrong")
-    expect(map.resolved(GridCell(x: 0, y: map.rows)) == (map.wrapsVertically ? GridCell(x: 0, y: 0) : nil), "Vertical boundary resolution wrong")
+    expect(map.cellCount == map.boardCellCount - map.walls.count, "Playable count includes walls")
+    expect(!map.contains(GridCell(x: -1, y: 0)) && !map.contains(GridCell(x: 0, y: map.rows)), "Contains accepted outside cell")
+    let engine = SnakeEngine(configuration: map, seed: 0)
+    for wall in map.walls {
+        expect(map.boardContains(wall) && !map.contains(wall) && map.isWall(wall), "Wall/bounds distinction wrong")
+        expect(map.resolved(wall) == nil && map.neighbors(of: wall).isEmpty, "Wall resolves as playable")
+        expect(engine.cycleIndex(of: wall) == -1, "Wall has a cycle index")
+        expect(engine.forwardDistance(from: wall, to: engine.snake[0]) == Int.max, "Invalid cycle distance not rejected")
+    }
+    expect(engine.cycleIndex(of: GridCell(x: map.columns, y: 0)) == -1, "Outside cycle lookup unsafe")
+    let horizontal = GridCell(x: map.columns - 1, y: 0)
+    let vertical = GridCell(x: 0, y: 0)
+    expect(map.resolved(GridCell(x: -1, y: 0)) == (map.wrapsHorizontally && !map.walls.contains(horizontal) ? horizontal : nil), "Horizontal resolution wrong")
+    expect(map.resolved(GridCell(x: 0, y: map.rows)) == (map.wrapsVertically && !map.walls.contains(vertical) ? vertical : nil), "Vertical resolution wrong")
 }
 
 private func checkCycles() {
@@ -84,9 +97,20 @@ private func checkCycles() {
             }
         }
     }
-    expect(SnakeMap.allCases.count == 4 && Set(SnakeMap.allCases.map(\.rawValue)).count == 4, "Map catalog changed unexpectedly")
+    expect(SnakeMap.allCases.count == 6 && Set(SnakeMap.allCases.map(\.rawValue)).count == 6, "Map catalog changed unexpectedly")
     expect(SnakeMap.meadow.configuration == .firstMap, "Default map mismatch")
-    for map in SnakeMap.allCases { checkTopology(map.configuration) }
+    let playableCounts = ["meadow": 384, "courtyard": 308, "doubleBars": 320, "staggered": 324, "twinRails": 264, "channels": 264]
+    for map in SnakeMap.allCases {
+        expect(map.configuration.columns == 16 && map.configuration.rows == 24 && map.configuration.boardCellCount == 384, "Catalog boards must be uniformly 16×24")
+        expect(map.configuration.cellCount == playableCounts[map.rawValue], "Unexpected wall pattern/playable count")
+        checkTopology(map.configuration)
+    }
+    let courtyard = SnakeMap.courtyard.configuration
+    for y in 0..<24 {
+        for x in 0..<16 {
+            expect(courtyard.isWall(GridCell(x: x, y: y)) == (x == 0 || x == 15 || y == 0 || y == 23), "Courtyard border must be exactly one cell thick")
+        }
+    }
 }
 
 private struct GameResult {
@@ -106,8 +130,8 @@ private func completeGame(map: SnakeConfiguration, seed: UInt64) -> GameResult {
     var wrappedY = false
     var trajectory: UInt64 = 0xCBF29CE484222325
     var middleReplans = 0
-    expect(engine.snake.count == 4, "Initial length must be four")
-    if let food = engine.food { expect(!occupied.contains(food), "Initial food under body") }
+    expect(engine.snake.count == 4 && engine.snake.allSatisfy { !map.walls.contains($0) }, "Initial body is invalid")
+    if let food = engine.food { expect(!occupied.contains(food) && !map.walls.contains(food), "Initial food on body/wall") }
     while engine.phase == .playing {
         guard let head = engine.snake.first, let tail = engine.snake.last,
               let candidate = engine.nextCell, let oldFood = engine.food else { fatalError("Playing game missing state") }
@@ -158,11 +182,11 @@ private func completeGame(map: SnakeConfiguration, seed: UInt64) -> GameResult {
             expect(engine.cycle == oldCycle && engine.replanAttempts == oldAttempts && engine.cycleReplans == oldReplans, "Cycle changed between foods")
             expect(engine.forwardDistance(from: candidate, to: oldFood) < foodDistance, "Frozen-cycle food rank did not decrease")
         }
-        if let food = engine.food { expect(!occupied.contains(food), "Food placed under body, seed \(seed)") }
+        if let food = engine.food { expect(!occupied.contains(food) && !map.walls.contains(food), "Food placed on body/wall, seed \(seed)") }
         expect(engine.steps <= map.cellCount * map.cellCount, "Completion bound exceeded")
     }
     expect(engine.phase == .filled && engine.snake.count == map.cellCount && occupied.count == map.cellCount, "Incomplete board")
-    expect(engine.food == nil, "Filled board still has food")
+    expect(engine.food == nil && occupied.isDisjoint(with: map.walls), "Filled board includes a wall or food")
     let finalSteps = engine.steps
     let finalSnake = engine.snake
     engine.step()
@@ -196,6 +220,56 @@ private func checkDeterminismAndDiversity() {
     }
 }
 
+private func checkObstacleFallbacks() {
+    let all = Set((0..<4).flatMap { y in (0..<4).map { GridCell(x: $0, y: y) } })
+    let island = Set((2..<4).flatMap { y in (2..<4).map { GridCell(x: $0, y: y) } })
+    let tiny = SnakeConfiguration(columns: 4, rows: 4, wrapsHorizontally: false, wrapsVertically: false, walls: all.subtracting(island))
+    let corner = Set((0..<2).flatMap { y in (0..<2).map { GridCell(x: $0, y: y) } })
+    let bent = SnakeConfiguration(columns: 4, rows: 4, wrapsHorizontally: false, wrapsVertically: false, walls: corner)
+    let hole = Set((2..<4).flatMap { y in (2..<4).map { GridCell(x: $0, y: y) } })
+    for map in [tiny, bent, SnakeConfiguration(columns: 6, rows: 8, walls: hole)] {
+        checkTopology(map)
+        for seed in 0..<64 { _ = completeGame(map: map, seed: UInt64(seed)) }
+    }
+}
+
+private func seedSignature() -> String {
+    var digest: UInt64 = 0xCBF29CE484222325
+    for map in SnakeMap.allCases {
+        for seed: UInt64 in [0, 42, UInt64.max] {
+            var engine = SnakeEngine(configuration: map.configuration, seed: seed)
+            for cell in engine.cycle { digest = (digest ^ UInt64(cell.y * 16 + cell.x)) &* 0x100000001B3 }
+            for _ in 0..<2_000 {
+                engine.step()
+                let head = engine.snake[0]
+                let food = engine.food.map { $0.y * 16 + $0.x } ?? 384
+                digest = (digest ^ UInt64(head.y * 16 + head.x)) &* 0x100000001B3
+                digest = (digest ^ UInt64(food)) &* 0x100000001B3
+            }
+        }
+    }
+    return String(digest)
+}
+
+private func checkCrossProcessSeeds() {
+    func childSignature() -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+        process.arguments = ["--snake-seed-signature"]
+        var environment = ProcessInfo.processInfo.environment
+        environment["SWIFT_DETERMINISTIC_HASHING"] = "0"
+        process.environment = environment
+        let output = Pipe()
+        process.standardOutput = output
+        do { try process.run() } catch { fatalError("Could not launch seed subprocess: \(error)") }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        expect(process.terminationStatus == 0, "Seed subprocess failed")
+        return String(decoding: data, as: UTF8.self)
+    }
+    expect(childSignature() == childSignature(), "Seed result depends on per-process Set/Dictionary hashing")
+}
+
 private func benchmark() {
     for map in SnakeMap.allCases {
         var timings: [Double] = []
@@ -221,10 +295,13 @@ private func benchmark() {
 @main
 private enum SnakeEngineChecks {
     static func main() {
+        if CommandLine.arguments.contains("--snake-seed-signature") { print(seedSignature()); return }
         if ProcessInfo.processInfo.environment["SNAKE_BENCHMARK_ONLY"] == "1" { benchmark(); return }
         let started = Date()
         checkCycles()
         checkDeterminismAndDiversity()
+        checkCrossProcessSeeds()
+        checkObstacleFallbacks()
         // All combinations of wall/wrap axes also get complete small-map games,
         // including two-cell dimensions and odd/even orientation changes.
         for (columns, rows) in [(2, 2), (2, 3), (3, 2), (2, 5), (5, 2), (3, 4), (4, 3), (7, 10)] {
@@ -244,8 +321,11 @@ private enum SnakeEngineChecks {
                 let seed = UInt64(index) &* 0x9E3779B97F4A7C15 &+ 0xD1B54A32D192ED03
                 results.append(completeGame(map: map.configuration, seed: seed))
             }
-            if map.configuration.wrapsHorizontally { expect(results.contains(where: \.wrappedX), "Never crossed allowed X seam") }
-            if map.configuration.wrapsVertically { expect(results.contains(where: \.wrappedY), "Never crossed allowed Y seam") }
+            let c = map.configuration
+            let openX = (0..<c.rows).contains { y in !c.walls.contains(GridCell(x: 0, y: y)) && !c.walls.contains(GridCell(x: c.columns - 1, y: y)) }
+            let openY = (0..<c.columns).contains { x in !c.walls.contains(GridCell(x: x, y: 0)) && !c.walls.contains(GridCell(x: x, y: c.rows - 1)) }
+            if c.wrapsHorizontally && openX { expect(results.contains(where: \.wrappedX), "Never crossed an open X seam") }
+            if c.wrapsVertically && openY { expect(results.contains(where: \.wrappedY), "Never crossed an open Y seam") }
             if mapSeeds >= 32 { expect(Set(results.map(\.trajectory)).count > mapSeeds * 9 / 10, "Routes too similar across seeds") }
             expect(results.allSatisfy { $0.replans > 0 && $0.middleReplans > 0 }, "Missing genuine midgame changes")
             let steps = results.map(\.steps).sorted()
@@ -253,6 +333,6 @@ private enum SnakeEngineChecks {
             print("Minimum genuine/midgame edge replans: \(results.map(\.replans).min()!)/\(results.map(\.middleReplans).min()!)")
         }
         benchmark()
-        print(String(format: "PASS all map topologies, wall-safe cycles, food bounds, frozen plans, budget and deterministic diversity (%.2fs)", Date().timeIntervalSince(started)))
+        print(String(format: "PASS six 16×24 obstacle maps, playable-only cycles, safe wall lookup, food bounds, frozen plans, budget and cross-process seeds (%.2fs)", Date().timeIntervalSince(started)))
     }
 }

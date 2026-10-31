@@ -9,19 +9,24 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
-                    header
-                    if session.stage == .setup {
-                        setup
-                    } else {
+                if session.stage == .setup {
+                    setup(in: geometry.size)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .frame(maxWidth: 660)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geometry.size.height)
+                } else {
+                    VStack(spacing: 16) {
+                        header
                         game(in: geometry.size)
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: 510)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geometry.size.height)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .frame(maxWidth: 510)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: geometry.size.height)
             }
             .disabled(session.showsRestartConfirmation)
             .accessibilityHidden(session.showsRestartConfirmation)
@@ -49,87 +54,77 @@ struct ContentView: View {
             PixelText(text: "SNAKE", pixel: 3)
                 .accessibilityLabel("自动贪吃蛇")
             Spacer()
-            if session.stage == .setup {
-                PixelLabel(text: "选择后开始", size: 12)
-            }
         }
         .frame(height: 36)
     }
 
-    private var setup: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PixelLabel(text: "选择地图", size: 18)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(SnakeMap.allCases) { map in mapChoice(map) }
-            }
+    private func setup(in size: CGSize) -> some View {
+        let contentWidth = max(0, min(size.width, 660) - 40)
+        let thumbnailHeight = min(272, floor(max(0, contentWidth - 24) / 3 * 1.5))
+        let fixedHeight = 286 + thumbnailHeight * 2
+        let sectionGap = max(18, (size.height - fixedHeight) / 3)
+        return VStack(alignment: .leading, spacing: 0) {
+            header
+            Spacer(minLength: sectionGap)
 
-            HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 10) {
+                PixelLabel(text: "选择地图", size: 18)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                    ForEach(SnakeMap.allCases) { map in
+                        mapChoice(map, height: thumbnailHeight)
+                    }
+                }
+            }
+            Spacer(minLength: sectionGap)
+
+            VStack(alignment: .leading, spacing: 12) {
                 PixelLabel(text: "选择速度", size: 18)
-                Spacer()
-                PixelLabel(text: "速度以步 / 秒计", size: 12)
+                HStack(spacing: 10) {
+                    ForEach(SnakeSpeed.allCases) { speed in speedChoice(speed) }
+                }
             }
-            HStack(spacing: 10) {
-                ForEach(SnakeSpeed.allCases) { speed in speedChoice(speed) }
-            }
-
-            let estimate = SnakeDurationEstimates.estimate(for: session.selectedMap,
-                                                           movesPerSecond: session.selectedSpeed.movesPerSecond)
-            PixelLabel(text: "预计 \(estimate.lowerMinutes)-\(estimate.upperMinutes) 分钟，通常约 \(estimate.typicalMinutes) 分钟",
-                       size: 14)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-                .padding(.vertical, 6)
+            Spacer(minLength: sectionGap)
 
             Button { session.begin() } label: {
-                PixelLabel(text: "开始观看", size: 24)
+                PixelLabel(text: "开始游戏", size: 24)
+                    .frame(minHeight: 56)
             }
             .buttonStyle(PixelButtonStyle(emphasized: true))
-            .accessibilityLabel("按所选地图和速度开始观看")
-
-            PixelLabel(text: "根据 \(estimate.sampleCount) 局模拟给出常见范围。\n随机食物、暂停与设备调度会影响实际用时。", size: 12)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .opacity(0.70)
+            .accessibilityLabel("按所选地图和速度开始游戏")
         }
     }
 
-    private func mapChoice(_ map: SnakeMap) -> some View {
+    private func mapChoice(_ map: SnakeMap, height: CGFloat) -> some View {
         let selected = map == session.selectedMap
         let configuration = map.configuration
         return Button { session.selectMap(map) } label: {
-            HStack(spacing: 9) {
-                PixelMapThumbnail(configuration: configuration, selected: selected)
-                    .frame(width: 34, height: 50)
-                VStack(alignment: .leading, spacing: 5) {
-                    PixelLabel(text: map.title, size: 16).lineLimit(1)
-                    PixelLabel(text: "\(configuration.columns) x \(configuration.rows)", size: 12)
-                    PixelLabel(text: topologyLabel(configuration), size: 12)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 82)
+            PixelMapThumbnail(configuration: configuration)
+                .aspectRatio(CGFloat(configuration.columns) / CGFloat(configuration.rows), contentMode: .fit)
+                .padding(7)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
         }
-        .buttonStyle(PixelChoiceStyle(selected: selected))
+        .buttonStyle(PixelMapChoiceStyle(selected: selected))
         .accessibilityLabel("地图，\(map.title)，\(map.subtitle)")
         .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func speedChoice(_ speed: SnakeSpeed) -> some View {
         let selected = speed == session.selectedSpeed
         let estimate = SnakeDurationEstimates.estimate(for: session.selectedMap, movesPerSecond: speed.movesPerSecond)
         return Button { session.selectSpeed(speed) } label: {
-            VStack(spacing: 9) {
+            VStack(spacing: 8) {
                 PixelLabel(text: speed.label, size: 18)
-                PixelLabel(text: "\(Int(speed.movesPerSecond)) 步/秒", size: 12)
-                PixelLabel(text: "约 \(estimate.lowerMinutes)-\(estimate.upperMinutes) 分", size: 12)
+                PixelLabel(text: "\(estimate.lowerMinutes)-\(estimate.upperMinutes) 分钟", size: 12)
             }
-            .frame(maxWidth: .infinity, minHeight: 96)
+            .frame(maxWidth: .infinity, minHeight: 80)
             .padding(.horizontal, 3)
         }
         .buttonStyle(PixelChoiceStyle(selected: selected))
-        .accessibilityLabel("\(speed.label)，每秒 \(Int(speed.movesPerSecond)) 步，模拟预计 \(estimate.lowerMinutes) 至 \(estimate.upperMinutes) 分钟")
+        .accessibilityLabel("\(speed.label)，预计 \(estimate.lowerMinutes) 至 \(estimate.upperMinutes) 分钟")
         .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func game(in size: CGSize) -> some View {
@@ -197,7 +192,7 @@ struct ContentView: View {
             }
         }
         .padding(5)
-        .overlay { PixelBoundary(configuration: session.engine.configuration) }
+        .overlay { PixelBoardOutline() }
     }
 
     private var endCard: some View {
@@ -261,12 +256,6 @@ struct ContentView: View {
             : String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
-    private func topologyLabel(_ configuration: SnakeConfiguration) -> String {
-        if configuration.wrapsHorizontally && configuration.wrapsVertically { return "四边互通" }
-        if configuration.wrapsHorizontally { return "左右互通" }
-        if configuration.wrapsVertically { return "上下互通" }
-        return "四面有墙"
-    }
 }
 
 /// A small original 5×7 bitmap alphabet keeps the HUD independent of font assets.
@@ -339,17 +328,28 @@ private struct RetroBoard: View {
             context.fill(pixels, with: .color(LCD.ink))
         }
         .background(LCD.paper)
+        .overlay { PixelWalls(configuration: engine.configuration) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("自动贪吃蛇，\(boundaryDescription)")
-        .accessibilityValue("蛇身 \(engine.snake.count) 格，共 \(engine.configuration.cellCount) 格")
+        .accessibilityValue("蛇身 \(engine.snake.count) 格，可用 \(engine.configuration.cellCount) 格")
     }
 
     private var boundaryDescription: String {
         let configuration = engine.configuration
-        if configuration.wrapsHorizontally && configuration.wrapsVertically { return "四边互通棋盘" }
-        if configuration.wrapsHorizontally { return "左右互通，上下有墙的棋盘" }
-        if configuration.wrapsVertically { return "上下互通，左右有墙的棋盘" }
-        return "四面有墙棋盘"
+        let horizontalPassage = configuration.wrapsHorizontally && (0..<configuration.rows).contains { row in
+            configuration.contains(GridCell(x: 0, y: row))
+                && configuration.contains(GridCell(x: configuration.columns - 1, y: row))
+        }
+        let verticalPassage = configuration.wrapsVertically && (0..<configuration.columns).contains { column in
+            configuration.contains(GridCell(x: column, y: 0))
+                && configuration.contains(GridCell(x: column, y: configuration.rows - 1))
+        }
+        let edges: String
+        if horizontalPassage && verticalPassage { edges = "左右与上下有穿越通道" }
+        else if horizontalPassage { edges = "左右有穿越通道，上下有墙" }
+        else if verticalPassage { edges = "上下有穿越通道，左右有墙" }
+        else { edges = "四面有墙" }
+        return configuration.walls.isEmpty ? "\(edges)棋盘" : "\(edges)棋盘，含 \(configuration.walls.count) 格墙壁"
     }
 }
 

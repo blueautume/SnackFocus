@@ -10,27 +10,41 @@ struct SnakeConfiguration: Equatable, Sendable {
     let rows: Int
     let wrapsHorizontally: Bool
     let wrapsVertically: Bool
+    let walls: Set<GridCell>
 
-    init(columns: Int, rows: Int, wrapsHorizontally: Bool = true, wrapsVertically: Bool = true) {
+    init(columns: Int, rows: Int, wrapsHorizontally: Bool = true, wrapsVertically: Bool = true,
+         walls: Set<GridCell> = []) {
         self.columns = columns
         self.rows = rows
         self.wrapsHorizontally = wrapsHorizontally
         self.wrapsVertically = wrapsVertically
+        self.walls = Set(walls.filter { $0.x >= 0 && $0.x < columns && $0.y >= 0 && $0.y < rows })
     }
 
     static let firstMap = SnakeConfiguration(columns: 16, rows: 24)
-    var cellCount: Int { columns * rows }
+    var boardCellCount: Int { columns * rows }
+    var cellCount: Int { boardCellCount - walls.count }
 
-    func contains(_ cell: GridCell) -> Bool {
-        (0..<columns).contains(cell.x) && (0..<rows).contains(cell.y)
+    func boardContains(_ cell: GridCell) -> Bool {
+        cell.x >= 0 && cell.x < columns && cell.y >= 0 && cell.y < rows
     }
 
-    func resolved(_ cell: GridCell) -> GridCell? {
+    func contains(_ cell: GridCell) -> Bool { boardContains(cell) && !walls.contains(cell) }
+    func isWall(_ cell: GridCell) -> Bool { walls.contains(cell) }
+
+    /// Normalize board coordinates without rejecting wall cells. Tiling needs
+    /// to distinguish an entirely blocked square from a partly blocked square.
+    func boardResolved(_ cell: GridCell) -> GridCell? {
         guard columns > 0, rows > 0 else { return nil }
         if !wrapsHorizontally && !(0..<columns).contains(cell.x) { return nil }
         if !wrapsVertically && !(0..<rows).contains(cell.y) { return nil }
         return GridCell(x: (cell.x % columns + columns) % columns,
                         y: (cell.y % rows + rows) % rows)
+    }
+
+    func resolved(_ cell: GridCell) -> GridCell? {
+        guard let cell = boardResolved(cell), contains(cell) else { return nil }
+        return cell
     }
 
     func areNeighbors(_ a: GridCell, _ b: GridCell) -> Bool {
@@ -55,37 +69,67 @@ struct SnakeConfiguration: Equatable, Sendable {
 
 enum SnakeMap: String, CaseIterable, Identifiable, Sendable {
     case meadow
-    case pocket
     case courtyard
-    case passage
+    case doubleBars
+    case staggered
+    case twinRails
+    case channels
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .meadow: return "无边原野"
-        case .pocket: return "口袋原野"
-        case .courtyard: return "四面围墙"
-        case .passage: return "横向回廊"
+        case .meadow: return "无边空场"
+        case .courtyard: return "外圈围墙"
+        case .doubleBars: return "双横杠墙"
+        case .staggered: return "交错隔墙"
+        case .twinRails: return "双竖围栏"
+        case .channels: return "多层通道"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .meadow: return "16 × 24 · 四边互通"
-        case .pocket: return "12 × 18 · 小型环绕棋盘"
-        case .courtyard: return "16 × 24 · 四面墙壁"
-        case .passage: return "16 × 20 · 左右互通，上下有墙"
+        case .meadow: return "16 × 24 · 无墙环绕"
+        case .courtyard: return "16 × 24 · 单格外圈墙"
+        case .doubleBars: return "16 × 24 · 双横墙与角墙"
+        case .staggered: return "16 × 24 · 交错横向隔墙"
+        case .twinRails: return "16 × 24 · 双竖栏与侧边通道"
+        case .channels: return "16 × 24 · 多层相连通道"
         }
     }
 
     var configuration: SnakeConfiguration {
-        switch self {
-        case .meadow: return .firstMap
-        case .pocket: return SnakeConfiguration(columns: 12, rows: 18)
-        case .courtyard: return SnakeConfiguration(columns: 16, rows: 24, wrapsHorizontally: false, wrapsVertically: false)
-        case .passage: return SnakeConfiguration(columns: 16, rows: 20, wrapsHorizontally: true, wrapsVertically: false)
+        SnakeConfiguration(columns: 16, rows: 24, wrapsHorizontally: self != .courtyard,
+                           wrapsVertically: self != .courtyard && self != .twinRails, walls: wallCells)
+    }
+
+    private var wallCells: Set<GridCell> {
+        var cells: Set<GridCell> = []
+        func fill(_ xs: ClosedRange<Int>, _ ys: ClosedRange<Int>) {
+            for y in ys { for x in xs { cells.insert(GridCell(x: x, y: y)) } }
         }
+        switch self {
+        case .meadow:
+            break
+        case .courtyard:
+            fill(0...15, 0...0); fill(0...15, 23...23)
+            fill(0...0, 1...22); fill(15...15, 1...22)
+        case .doubleBars:
+            fill(2...13, 6...7); fill(2...13, 16...17)
+            for x in [0, 14] { for y in [0, 22] { fill(x...(x + 1), y...(y + 1)) } }
+        case .staggered:
+            fill(0...9, 4...5); fill(6...15, 10...11); fill(0...9, 16...17)
+        case .twinRails:
+            fill(0...15, 0...0); fill(0...15, 23...23)
+            for x in [0, 15] { fill(x...x, 1...8); fill(x...x, 15...22) }
+            fill(3...4, 5...18); fill(11...12, 5...18)
+        case .channels:
+            fill(0...11, 4...5); fill(4...15, 10...11)
+            fill(0...11, 16...17); fill(4...15, 22...23)
+            fill(10...11, 6...9); fill(4...5, 12...15); fill(10...11, 18...21)
+        }
+        return cells
     }
 }
 
@@ -95,8 +139,9 @@ enum SnakePhase: Equatable, Sendable {
     case collision
 }
 
-/// A deterministic rectangular game. Both dimensions must be >= 2 and at least
-/// one even so a spanning cycle exists, including when every edge is a wall.
+/// A deterministic game whose cycles span playable cells only. Obstacle maps
+/// are connected unions of 2×2 tiles; joining their small cycles along a tree
+/// supplies a Hamiltonian cycle without solving an unbounded path search.
 
 struct SnakeEngine: Sendable {
     let configuration: SnakeConfiguration
@@ -124,55 +169,14 @@ struct SnakeEngine: Sendable {
         self.configuration = configuration
         self.seed = seed
         var generator = SnakeRandom(seed: seed)
-        let horizontal: Bool
-        if configuration.columns.isMultiple(of: 2) && configuration.rows.isMultiple(of: 2) {
-            horizontal = generator.integer(lessThan: 2) == 0
-        } else {
-            horizontal = configuration.rows.isMultiple(of: 2)
-        }
-        let width = horizontal ? configuration.columns : configuration.rows
-        let height = horizontal ? configuration.rows : configuration.columns
-        let reflectX = generator.integer(lessThan: 2) == 0
-        let reflectY = generator.integer(lessThan: 2) == 0
-        let offsetX = configuration.wrapsHorizontally ? generator.integer(lessThan: configuration.columns) : 0
-        let offsetY = configuration.wrapsVertically ? generator.integer(lessThan: configuration.rows) : 0
-        var route: [GridCell] = []
-        route.reserveCapacity(configuration.cellCount)
-        if configuration.wrapsHorizontally && configuration.wrapsVertically {
-            for row in 0..<height {
-                for column in 0..<width {
-                    route.append(GridCell(x: row.isMultiple(of: 2) ? column : width - 1 - column, y: row))
-                }
-            }
-        } else {
-            // Reserve the first column as a return rail. The other columns
-            // snake through an even number of rows, then close up the rail.
-            // This cycle uses no seam at all before allowed-axis translation.
-            route.append(GridCell(x: 0, y: 0))
-            for row in 0..<height {
-                for column in 1..<width {
-                    route.append(GridCell(x: row.isMultiple(of: 2) ? column : width - column, y: row))
-                }
-            }
-            for row in stride(from: height - 1, through: 1, by: -1) {
-                route.append(GridCell(x: 0, y: row))
-            }
-        }
-        route = route.map { cell in
-            var x = horizontal ? cell.x : cell.y
-            var y = horizontal ? cell.y : cell.x
-            if reflectX { x = configuration.columns - 1 - x }
-            if reflectY { y = configuration.rows - 1 - y }
-            return GridCell(x: (x + offsetX) % configuration.columns,
-                            y: (y + offsetY) % configuration.rows)
-        }
-
+        precondition(configuration.cellCount >= 4, "Snake maps need at least four playable cells.")
+        var route = SnakeCycleGraph.initialCycle(configuration: configuration, random: &generator)
         if generator.integer(lessThan: 2) == 0 { route.reverse() }
         // Rotating the cycle also varies the starting head relative to the seams.
         let start = generator.integer(lessThan: route.count)
         route = Array(route[start...] + route[..<start])
         cycle = route
-        var lookup = [Int](repeating: 0, count: route.count)
+        var lookup = [Int](repeating: -1, count: configuration.boardCellCount)
         for (index, cell) in route.enumerated() {
             lookup[cell.y * configuration.columns + cell.x] = index
         }
@@ -189,11 +193,15 @@ struct SnakeEngine: Sendable {
     }
 
     func cycleIndex(of cell: GridCell) -> Int {
-        indices[cell.y * configuration.columns + cell.x]
+        guard configuration.contains(cell) else { return -1 }
+        return indices[cell.y * configuration.columns + cell.x]
     }
 
     func forwardDistance(from start: GridCell, to end: GridCell) -> Int {
-        (cycleIndex(of: end) - cycleIndex(of: start) + cycle.count) % cycle.count
+        let first = cycleIndex(of: start)
+        let last = cycleIndex(of: end)
+        guard first >= 0, last >= 0 else { return Int.max }
+        return (last - first + cycle.count) % cycle.count
     }
 
     func neighbors(of cell: GridCell) -> [GridCell] {
@@ -257,7 +265,7 @@ struct SnakeEngine: Sendable {
         for y in 0..<configuration.rows {
             for x in 0..<configuration.columns {
                 let cell = GridCell(x: x, y: y)
-                guard !occupied.contains(cell) else { continue }
+                guard configuration.contains(cell), !occupied.contains(cell) else { continue }
                 if rank == 0 {
                     food = cell
                     reconfigureCycle()
@@ -299,7 +307,7 @@ struct SnakeEngine: Sendable {
         let nearby = [(1, 1), (-1, 1), (1, -1), (-1, -1), (1, 0), (-1, 0), (0, 1), (0, -1)]
         for _ in 0..<8 {
             replanAttempts += 1
-            let firstSquare = random.integer(lessThan: cycle.count)
+            let firstSquare = random.integer(lessThan: configuration.boardCellCount)
             var split = original
             guard split.flip(square: firstSquare) else { continue }
             let components = split.componentLabels()
@@ -313,7 +321,7 @@ struct SnakeEngine: Sendable {
                                                                        y: firstSquare / columns + offset.1)) else { continue }
                     secondSquare = square.y * columns + square.x
                 } else {
-                    secondSquare = random.integer(lessThan: cycle.count)
+                    secondSquare = random.integer(lessThan: configuration.boardCellCount)
                 }
                 guard secondSquare != firstSquare,
                       let removed = split.removedEdgeOrigins(square: secondSquare) else { continue }
@@ -336,21 +344,149 @@ private struct SnakeCycleGraph {
     private var first: [Int]
     private var second: [Int]
     private let configuration: SnakeConfiguration
+    private var count: Int { configuration.cellCount }
+
+    private init(configuration: SnakeConfiguration) {
+        self.configuration = configuration
+        first = [Int](repeating: -1, count: configuration.boardCellCount)
+        second = first
+    }
 
     init(cycle: [GridCell], configuration: SnakeConfiguration) {
-        self.configuration = configuration
-        let count = cycle.count
-        first = [Int](repeating: 0, count: count)
-        second = first
+        self.init(configuration: configuration)
+        let length = cycle.count
         for index in cycle.indices {
             let cell = cycle[index]
-            let previous = cycle[(index + count - 1) % count]
-            let next = cycle[(index + 1) % count]
+            let previous = cycle[(index + length - 1) % length]
+            let next = cycle[(index + 1) % length]
             let id = cell.y * configuration.columns + cell.x
             first[id] = previous.y * configuration.columns + previous.x
             second[id] = next.y * configuration.columns + next.x
         }
     }
+
+    private struct Tile {
+        let anchor: GridCell
+        // top-left, top-right, bottom-left, bottom-right (possibly at a seam)
+        let cells: [Int]
+    }
+
+    static func initialCycle(configuration: SnakeConfiguration, random: inout SnakeRandom) -> [GridCell] {
+        // Row-major order and fixed neighbor order make seeds reproducible
+        // across processes; wall Sets are used only for membership checks.
+        for parity in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            if let tiles = tilePartition(configuration, x: parity.0, y: parity.1) {
+                return joinTiles(tiles, configuration: configuration, random: &random)
+            }
+        }
+        precondition(configuration.walls.isEmpty, "Obstacle maps must be connected unions of whole 2×2 tiles.")
+        return rectangleCycle(configuration, random: &random)
+    }
+
+    private static func tilePartition(_ map: SnakeConfiguration, x parityX: Int, y parityY: Int) -> [Tile]? {
+        var tiles: [Tile] = []
+        var covered = [Bool](repeating: false, count: map.boardCellCount)
+        var coveredCount = 0
+        for y in stride(from: parityY, to: map.rows, by: 2) {
+            for x in stride(from: parityX, to: map.columns, by: 2) {
+                let raw = [GridCell(x: x, y: y), GridCell(x: x + 1, y: y),
+                           GridCell(x: x, y: y + 1), GridCell(x: x + 1, y: y + 1)]
+                let cells = raw.compactMap { map.boardResolved($0) }.filter { map.contains($0) }
+                if cells.isEmpty { continue }
+                guard cells.count == 4, Set(cells).count == 4 else { return nil }
+                let ids = cells.map { $0.y * map.columns + $0.x }
+                for id in ids {
+                    guard !covered[id] else { return nil }
+                    covered[id] = true
+                    coveredCount += 1
+                }
+                tiles.append(Tile(anchor: GridCell(x: x, y: y), cells: ids))
+            }
+        }
+        return coveredCount == map.cellCount ? tiles : nil
+    }
+
+    private static func joinTiles(_ tiles: [Tile], configuration map: SnakeConfiguration,
+                                  random: inout SnakeRandom) -> [GridCell] {
+        var graph = SnakeCycleGraph(configuration: map)
+        var byAnchor: [GridCell: Int] = [:]
+        for (index, tile) in tiles.enumerated() {
+            byAnchor[tile.anchor] = index
+            let ring = [tile.cells[0], tile.cells[1], tile.cells[3], tile.cells[2]]
+            for position in ring.indices {
+                graph.first[ring[position]] = ring[(position + 3) % 4]
+                graph.second[ring[position]] = ring[(position + 1) % 4]
+            }
+        }
+        let start = random.integer(lessThan: tiles.count)
+        var seen = [Bool](repeating: false, count: tiles.count)
+        seen[start] = true
+        var stack = [start]
+        var joined = 1
+        let directions = [(2, 0), (-2, 0), (0, 2), (0, -2)]
+        while let current = stack.last {
+            var candidates: [(tile: Int, direction: Int)] = []
+            for (direction, offset) in directions.enumerated() {
+                let anchor = tiles[current].anchor
+                guard let next = map.boardResolved(GridCell(x: anchor.x + offset.0, y: anchor.y + offset.1)),
+                      let index = byAnchor[next], !seen[index],
+                      !candidates.contains(where: { $0.tile == index }) else { continue }
+                candidates.append((index, direction))
+            }
+            guard !candidates.isEmpty else { stack.removeLast(); continue }
+            let selected = candidates[random.integer(lessThan: candidates.count)]
+            let a = tiles[current].cells
+            let b = tiles[selected.tile].cells
+            switch selected.direction {
+            case 0: graph.join((a[1], a[3]), (b[0], b[2]))
+            case 1: graph.join((a[0], a[2]), (b[1], b[3]))
+            case 2: graph.join((a[2], a[3]), (b[0], b[1]))
+            default: graph.join((a[0], a[1]), (b[2], b[3]))
+            }
+            seen[selected.tile] = true
+            joined += 1
+            stack.append(selected.tile)
+        }
+        precondition(joined == tiles.count, "Playable tile graph must be connected.")
+        guard let walk = graph.walk(start: tiles[start].cells[0]) else {
+            preconditionFailure("Tree merges must produce one spanning cycle.")
+        }
+        return walk.order.map { GridCell(x: $0 % map.columns, y: $0 / map.columns) }
+    }
+
+    /// Every merge removes one edge from each of two disjoint cycles and adds
+    /// two legal cross edges, preserving degree two and joining the components.
+    private mutating func join(_ a: (Int, Int), _ b: (Int, Int)) {
+        precondition(connected(a.0, a.1) && connected(b.0, b.1))
+        precondition(configuration.areNeighbors(cell(a.0), cell(b.0)) && configuration.areNeighbors(cell(a.1), cell(b.1)))
+        replace(a.0, removing: a.1, adding: b.0)
+        replace(a.1, removing: a.0, adding: b.1)
+        replace(b.0, removing: b.1, adding: a.0)
+        replace(b.1, removing: b.0, adding: a.1)
+    }
+
+    /// Odd/even empty test boards need not tile into 2×2 squares. A bounded
+    /// rail cycle (or toroidal serpentine) handles these obstacle-free cases.
+    private static func rectangleCycle(_ map: SnakeConfiguration, random: inout SnakeRandom) -> [GridCell] {
+        let horizontal = map.rows.isMultiple(of: 2)
+        let width = horizontal ? map.columns : map.rows
+        let height = horizontal ? map.rows : map.columns
+        var route: [GridCell] = []
+        if map.wrapsHorizontally && map.wrapsVertically {
+            for y in 0..<height {
+                for x in 0..<width { route.append(GridCell(x: y.isMultiple(of: 2) ? x : width - 1 - x, y: y)) }
+            }
+        } else {
+            route.append(GridCell(x: 0, y: 0))
+            for y in 0..<height {
+                for x in 1..<width { route.append(GridCell(x: y.isMultiple(of: 2) ? x : width - x, y: y)) }
+            }
+            for y in stride(from: height - 1, through: 1, by: -1) { route.append(GridCell(x: 0, y: y)) }
+        }
+        return route.map { horizontal ? $0 : GridCell(x: $0.y, y: $0.x) }
+    }
+
+    private func cell(_ id: Int) -> GridCell { GridCell(x: id % configuration.columns, y: id / configuration.columns) }
 
     private func corners(square: Int) -> (a: Int, b: Int, c: Int, d: Int)? {
         let columns = configuration.columns
@@ -360,90 +496,88 @@ private struct SnakeCycleGraph {
               (y + 1 < configuration.rows || configuration.wrapsVertically) else { return nil }
         let nextX = (x + 1) % columns
         let nextY = (y + 1) % configuration.rows
-        return (square, y * columns + nextX, nextY * columns + x, nextY * columns + nextX)
+        let result = (square, y * columns + nextX, nextY * columns + x, nextY * columns + nextX)
+        guard [result.0, result.1, result.2, result.3].allSatisfy({ configuration.contains(cell($0)) }) else { return nil }
+        return result
     }
 
     private func connected(_ a: Int, _ b: Int) -> Bool { first[a] == b || second[a] == b }
 
     func removedEdgeOrigins(square: Int) -> (Int, Int)? {
-        guard let points = corners(square: square) else { return nil }
-        let (a, b, c, d) = points
+        guard let (a, b, c, d) = corners(square: square) else { return nil }
         if connected(a, b) && connected(c, d) && !connected(a, c) && !connected(b, d) { return (a, c) }
         if connected(a, c) && connected(b, d) && !connected(a, b) && !connected(c, d) { return (a, b) }
         return nil
     }
 
     mutating func flip(square: Int) -> Bool {
-        guard let removed = removedEdgeOrigins(square: square), let points = corners(square: square) else { return false }
-        let (a, b, c, d) = points
+        guard let removed = removedEdgeOrigins(square: square), let (a, b, c, d) = corners(square: square) else { return false }
         if removed.1 == c {
-            replace(a, removing: b, adding: c)
-            replace(b, removing: a, adding: d)
-            replace(c, removing: d, adding: a)
-            replace(d, removing: c, adding: b)
+            replace(a, removing: b, adding: c); replace(b, removing: a, adding: d)
+            replace(c, removing: d, adding: a); replace(d, removing: c, adding: b)
         } else {
-            replace(a, removing: c, adding: b)
-            replace(b, removing: d, adding: a)
-            replace(c, removing: a, adding: d)
-            replace(d, removing: b, adding: c)
+            replace(a, removing: c, adding: b); replace(b, removing: d, adding: a)
+            replace(c, removing: a, adding: d); replace(d, removing: b, adding: c)
         }
         return true
     }
 
-    private mutating func replace(_ cell: Int, removing old: Int, adding new: Int) {
-        if first[cell] == old { first[cell] = new }
-        else {
-            precondition(second[cell] == old)
-            second[cell] = new
-        }
+    private mutating func replace(_ id: Int, removing old: Int, adding new: Int) {
+        if first[id] == old { first[id] = new }
+        else { precondition(second[id] == old); second[id] = new }
     }
 
     func componentLabels() -> (labels: [Int], count: Int) {
         var labels = [Int](repeating: -1, count: first.count)
-        var count = 0
-        for start in first.indices where labels[start] == -1 {
+        var components = 0
+        for start in first.indices where first[start] >= 0 && labels[start] == -1 {
             var previous = -1
-            var cell = start
-            while labels[cell] == -1 {
-                labels[cell] = count
-                let next = first[cell] == previous ? second[cell] : first[cell]
-                previous = cell
-                cell = next
+            var current = start
+            while labels[current] == -1 {
+                labels[current] = components
+                let next = first[current] == previous ? second[current] : first[current]
+                previous = current
+                current = next
             }
-            count += 1
+            components += 1
         }
-        return (labels, count)
+        return (labels, components)
     }
 
     func differs(from other: SnakeCycleGraph) -> Bool {
-        for cell in first.indices {
-            if !other.connected(cell, first[cell]) || !other.connected(cell, second[cell]) { return true }
+        for id in first.indices where first[id] >= 0 {
+            if !other.connected(id, first[id]) || !other.connected(id, second[id]) { return true }
         }
         return false
     }
 
-    func orientedOrder(head: Int, body: [Int], food: Int) -> (order: [Int], indices: [Int], foodDistance: Int)? {
+    private func walk(start: Int) -> (order: [Int], indices: [Int])? {
         var order: [Int] = []
-        order.reserveCapacity(first.count)
+        order.reserveCapacity(count)
         var indices = [Int](repeating: -1, count: first.count)
         var previous = -1
-        var cell = head
-        while indices[cell] == -1 {
-            indices[cell] = order.count
-            order.append(cell)
-            let next = first[cell] == previous ? second[cell] : first[cell]
-            guard configuration.areNeighbors(GridCell(x: cell % configuration.columns, y: cell / configuration.columns),
-                                             GridCell(x: next % configuration.columns, y: next / configuration.columns)) else { return nil }
-            previous = cell
-            cell = next
+        var current = start
+        while indices[current] == -1 {
+            indices[current] = order.count
+            order.append(current)
+            let next = first[current] == previous ? second[current] : first[current]
+            guard next >= 0, configuration.areNeighbors(cell(current), cell(next)) else { return nil }
+            previous = current
+            current = next
         }
-        guard cell == head, order.count == first.count else { return nil }
-        if !bodyIsOrdered(body, indices: indices, reversed: false) {
-            guard bodyIsOrdered(body, indices: indices, reversed: true) else { return nil }
-            order = [head] + order.dropFirst().reversed()
-            for id in indices.indices { indices[id] = (first.count - indices[id]) % first.count }
+        return current == start && order.count == count ? (order, indices) : nil
+    }
+
+    func orientedOrder(head: Int, body: [Int], food: Int) -> (order: [Int], indices: [Int], foodDistance: Int)? {
+        guard var candidate = walk(start: head) else { return nil }
+        if !bodyIsOrdered(body, indices: candidate.indices, reversed: false) {
+            guard bodyIsOrdered(body, indices: candidate.indices, reversed: true) else { return nil }
+            candidate.order = [head] + candidate.order.dropFirst().reversed()
+            for id in candidate.indices.indices where candidate.indices[id] >= 0 {
+                candidate.indices[id] = (count - candidate.indices[id]) % count
+            }
         }
-        return (order, indices, indices[food])
+        return (candidate.order, candidate.indices, candidate.indices[food])
     }
 
     private func bodyIsOrdered(_ body: [Int], indices: [Int], reversed: Bool) -> Bool {
@@ -451,15 +585,13 @@ private struct SnakeCycleGraph {
         for index in 1..<body.count {
             let before = indices[body[index - 1]]
             let after = indices[body[index]]
-            let distance = reversed ? (before - after + first.count) % first.count
-                : (after - before + first.count) % first.count
+            let distance = reversed ? (before - after + count) % count : (after - before + count) % count
             guard distance > 0 else { return false }
             total += distance
-            if total >= first.count { return false }
+            if total >= count { return false }
         }
         return true
     }
-
 }
 
 /// SplitMix64 supplies reproducible games; bounded sampling avoids modulo bias.

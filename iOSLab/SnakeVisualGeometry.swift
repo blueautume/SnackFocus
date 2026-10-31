@@ -46,7 +46,8 @@ enum SnakeVisualGeometry {
         let samples = bodySamples(centers: centers, time: time, reduceMotion: reduceMotion)
         var raster = SnakePixelRaster(columns: columns, rows: rows,
                                       wrapsHorizontally: configuration.wrapsHorizontally,
-                                      wrapsVertically: configuration.wrapsVertically)
+                                      wrapsVertically: configuration.wrapsVertically,
+                                      walls: configuration.walls)
         for sample in samples {
             raster.disc(center: sample.center, radius: sample.radius, value: 1)
         }
@@ -156,14 +157,16 @@ private struct SnakePixelRaster {
     let rows: Int
     let wrapsHorizontally: Bool
     let wrapsVertically: Bool
+    let walls: Set<GridCell>
     var dots: [UInt8]
     private let density = Double(SnakeVisualGeometry.pixelsPerCell)
 
-    init(columns: Int, rows: Int, wrapsHorizontally: Bool, wrapsVertically: Bool) {
+    init(columns: Int, rows: Int, wrapsHorizontally: Bool, wrapsVertically: Bool, walls: Set<GridCell>) {
         self.columns = columns
         self.rows = rows
         self.wrapsHorizontally = wrapsHorizontally
         self.wrapsVertically = wrapsVertically
+        self.walls = walls
         dots = [UInt8](repeating: 0, count: columns * rows)
     }
 
@@ -201,6 +204,9 @@ private struct SnakePixelRaster {
         if !wrapsVertically && !(0..<rows).contains(y) { return }
         let wrappedX = (x % columns + columns) % columns
         let wrappedY = (y % rows + rows) % rows
+        let cell = GridCell(x: wrappedX / SnakeVisualGeometry.pixelsPerCell,
+                            y: wrappedY / SnakeVisualGeometry.pixelsPerCell)
+        guard !walls.contains(cell) else { return }
         dots[wrappedY * columns + wrappedX] = value
     }
 }

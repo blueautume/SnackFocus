@@ -11,9 +11,9 @@ enum SnakeSpeed: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .calm: return "慢速"
-        case .steady: return "中速"
-        case .flow: return "快速"
+        case .calm: return "舒缓"
+        case .steady: return "适用"
+        case .flow: return "激进"
         }
     }
 

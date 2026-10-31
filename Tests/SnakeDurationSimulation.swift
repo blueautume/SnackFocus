@@ -7,11 +7,20 @@ private struct SpeedEstimate: Codable {
     let upperMinutes: Int
 }
 
+private struct WallCoordinate: Codable {
+    let x: Int
+    let y: Int
+}
+
 private struct MapSimulation: Codable {
     let id: String
     let title: String
     let columns: Int
     let rows: Int
+    let boardCellCount: Int
+    let playableCellCount: Int
+    let wallCount: Int
+    let walls: [WallCoordinate]
     let wrapsHorizontally: Bool
     let wrapsVertically: Bool
     let sampleCount: Int
@@ -115,8 +124,8 @@ private enum SnakeDurationSimulation {
         shanghai.timeZone = TimeZone(identifier: "Asia/Shanghai")
         shanghai.dateFormat = "yyyy-MM-dd HH:mm:ss 'Asia/Shanghai'"
         let report = SimulationReport(
-            schemaVersion: 1,
-            algorithm: "bounded paired-plaquette dynamic Hamiltonian cycle with order-preserving shortcuts",
+            schemaVersion: 2,
+            algorithm: "dynamic Hamiltonian cycle over playable cells with spanning-tree initial cycles, bounded paired-plaquette replanning and order-preserving shortcuts",
             engineSHA256: engineHash,
             sourceCommitAtSimulation: environment["SNAKE_ESTIMATE_SOURCE_COMMIT"] ?? "unspecified",
             engineMatchesRepositoryBaseCommit: engineHash == environment["SNAKE_ESTIMATE_BASE_ENGINE_SHA256"],
@@ -129,9 +138,10 @@ private enum SnakeDurationSimulation {
             durationMethod: "logicalMoves / actualMovesPerSecond / 60; lower=floor(P10), typical=round(P50), upper=ceil(P90), minimum 1 minute; pauses and scheduling delays excluded",
             checkedInvariants: [
                 "every logical move stays inside the selected map",
+                "head, food and the complete body are excluded from the exact recorded wall cells",
                 "every move is a legal adjacent edge under the selected wall/wrap topology",
                 "no engine collision or N-squared completion-budget exhaustion",
-                "each game finishes with all cells occupied exactly once and no food remaining"
+                "each game finishes with all playable cells occupied exactly once and no food remaining"
             ],
             maps: records
         )
@@ -153,30 +163,69 @@ private enum SnakeDurationSimulation {
 
     private static func simulate(map: SnakeMap, samples: Int) throws -> MapSimulation {
         let configuration = map.configuration
+        let boardCellCount = configuration.columns * configuration.rows
+        guard boardCellCount == configuration.boardCellCount,
+              configuration.cellCount == boardCellCount - configuration.walls.count,
+              configuration.cellCount >= 4,
+              configuration.walls.allSatisfy({
+                  (0..<configuration.columns).contains($0.x) && (0..<configuration.rows).contains($0.y)
+              }) else {
+            throw SimulationError.failed("\(map.rawValue) has inconsistent wall/playable-cell geometry")
+        }
+        let wallCoordinates = configuration.walls.sorted {
+            $0.y == $1.y ? $0.x < $1.x : $0.y < $1.y
+        }.map { WallCoordinate(x: $0.x, y: $0.y) }
+        FileHandle.standardError.write(Data("SIM \(map.rawValue): \(samples) seeds, \(configuration.cellCount) playable cells, \(wallCoordinates.count) walls\n".utf8))
         var stepsBySeed: [Int] = []
         stepsBySeed.reserveCapacity(samples)
         for index in 0..<samples {
             let seed = UInt64(index) &* 0x9E3779B97F4A7C15 &+ 0xD1B54A32D192ED03
             var engine = SnakeEngine(configuration: configuration, seed: seed)
+            guard engine.snake.allSatisfy({ !configuration.walls.contains($0) }),
+                  engine.cycle.count == configuration.cellCount,
+                  Set(engine.cycle).count == configuration.cellCount,
+                  engine.cycle.allSatisfy({
+                      (0..<configuration.columns).contains($0.x) && (0..<configuration.rows).contains($0.y)
+                          && !configuration.walls.contains($0)
+                  }) else {
+                throw SimulationError.failed("\(map.rawValue) seed \(seed) starts on a wall or incomplete cycle")
+            }
             let budget = configuration.cellCount * configuration.cellCount
             while engine.phase == .playing && engine.steps < budget {
                 guard let previous = engine.snake.first else {
                     throw SimulationError.failed("\(map.rawValue) seed \(seed) has no head")
                 }
+                let previousFoodsEaten = engine.foodsEaten
                 engine.step()
                 guard engine.phase != .collision, let head = engine.snake.first,
                       (0..<configuration.columns).contains(head.x),
                       (0..<configuration.rows).contains(head.y),
+                      !configuration.walls.contains(head),
                       adjacent(previous, head, configuration: configuration) else {
                     throw SimulationError.failed("\(map.rawValue) seed \(seed) invalid move at \(engine.steps)")
+                }
+                if let food = engine.food, configuration.walls.contains(food) {
+                    throw SimulationError.failed("\(map.rawValue) seed \(seed) placed food on a wall")
+                }
+                // Between growth events only a new head is inserted and a tail
+                // is removed. Validate the entire body after every growth too.
+                if engine.foodsEaten != previousFoodsEaten {
+                    guard engine.snake.allSatisfy({ !configuration.walls.contains($0) }),
+                          Set(engine.snake).count == engine.snake.count else {
+                        throw SimulationError.failed("\(map.rawValue) seed \(seed) body overlapped a wall or itself after growth")
+                    }
                 }
             }
             guard engine.phase == .filled, engine.snake.count == configuration.cellCount,
                   Set(engine.snake).count == configuration.cellCount, engine.food == nil,
+                  engine.snake.allSatisfy({ !configuration.walls.contains($0) }),
                   engine.foodsEaten == configuration.cellCount - 4 else {
                 throw SimulationError.failed("\(map.rawValue) seed \(seed) failed to fill within \(budget) moves")
             }
             stepsBySeed.append(engine.steps)
+            if (index + 1).isMultiple(of: 32) || index + 1 == samples {
+                FileHandle.standardError.write(Data("  \(map.rawValue): \(index + 1)/\(samples) filled\n".utf8))
+            }
         }
         let sorted = stepsBySeed.sorted()
         let p10 = percentile(sorted, fraction: 0.10)
@@ -185,6 +234,8 @@ private enum SnakeDurationSimulation {
         return MapSimulation(
             id: map.rawValue, title: map.title,
             columns: configuration.columns, rows: configuration.rows,
+            boardCellCount: boardCellCount, playableCellCount: configuration.cellCount,
+            wallCount: wallCoordinates.count, walls: wallCoordinates,
             wrapsHorizontally: configuration.wrapsHorizontally,
             wrapsVertically: configuration.wrapsVertically,
             sampleCount: samples, failures: 0,
@@ -232,6 +283,7 @@ private enum SnakeDurationSimulation {
         /// Generated by Scripts/estimate-snake-duration.sh --write.
         /// Raw steps, deterministic seeds and provenance: Docs/SnakeDurationSimulation.json.
         enum SnakeDurationEstimates {
+            static let simulationSchemaVersion = \(report.schemaVersion)
             static let engineSHA256 = "\(report.engineSHA256)"
             static let sampleCountPerMap = \(report.sampleCountPerMap)
 

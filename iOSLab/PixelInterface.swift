@@ -50,33 +50,54 @@ struct PixelChoiceStyle: ButtonStyle {
     }
 }
 
-/// Solid pixel walls versus broken, traversable edges use the same vocabulary
-/// in map thumbnails and in the actual game field.
-struct PixelBoundary: View {
+/// Selection framing is separate from the map: a wall always occupies a real
+/// grid cell and keeps the same ink-on-paper appearance as in the game.
+struct PixelMapChoiceStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(LCD.paper)
+            .overlay { Rectangle().strokeBorder(LCD.ink.opacity(selected ? 1 : 0.35), lineWidth: selected ? 3 : 1) }
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .contentShape(Rectangle())
+            .transaction { $0.animation = nil }
+    }
+}
+
+struct PixelBoardOutline: View {
+    var body: some View {
+        Rectangle()
+            .strokeBorder(LCD.ink.opacity(0.30), lineWidth: 1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Both the thumbnail and the live board draw the exact same occupied cells.
+/// Fine inset seams make adjacent wall blocks legible as whole grid squares.
+struct PixelWalls: View {
     let configuration: SnakeConfiguration
-    var color = LCD.ink
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         Canvas { context, size in
-            let inset: CGFloat = 1.5
-            let left = inset
-            let right = size.width - inset
-            let top = inset
-            let bottom = size.height - inset
-            let sides: [(CGPoint, CGPoint, Bool)] = [
-                (CGPoint(x: left, y: top), CGPoint(x: right, y: top), !configuration.wrapsVertically),
-                (CGPoint(x: left, y: bottom), CGPoint(x: right, y: bottom), !configuration.wrapsVertically),
-                (CGPoint(x: left, y: top), CGPoint(x: left, y: bottom), !configuration.wrapsHorizontally),
-                (CGPoint(x: right, y: top), CGPoint(x: right, y: bottom), !configuration.wrapsHorizontally)
-            ]
-            for (start, end, wall) in sides {
-                var path = Path()
-                path.move(to: start)
-                path.addLine(to: end)
-                context.stroke(path, with: .color(color.opacity(wall ? 1 : 0.50)),
-                               style: StrokeStyle(lineWidth: wall ? 3 : 1, lineCap: .butt,
-                                                  dash: wall ? [] : [2, 3]))
+            let unitX = size.width / CGFloat(configuration.columns)
+            let unitY = size.height / CGFloat(configuration.rows)
+            let seam = 1 / displayScale
+            var blocks = Path()
+            var seams = Path()
+            for wall in configuration.walls {
+                let left = (CGFloat(wall.x) * unitX * displayScale).rounded() / displayScale
+                let top = (CGFloat(wall.y) * unitY * displayScale).rounded() / displayScale
+                let right = (CGFloat(wall.x + 1) * unitX * displayScale).rounded() / displayScale
+                let bottom = (CGFloat(wall.y + 1) * unitY * displayScale).rounded() / displayScale
+                blocks.addRect(CGRect(x: left, y: top, width: right - left, height: bottom - top))
+                seams.addRect(CGRect(x: right - seam, y: top, width: seam, height: bottom - top))
+                seams.addRect(CGRect(x: left, y: bottom - seam, width: right - left, height: seam))
             }
+            context.fill(blocks, with: .color(LCD.ink))
+            context.fill(seams, with: .color(LCD.paper.opacity(0.22)))
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -85,29 +106,29 @@ struct PixelBoundary: View {
 
 struct PixelMapThumbnail: View {
     let configuration: SnakeConfiguration
-    var selected = false
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         ZStack {
             Canvas { context, size in
-                let points = [CGPoint(x: 0.22, y: 0.72), CGPoint(x: 0.22, y: 0.28),
-                              CGPoint(x: 0.48, y: 0.28), CGPoint(x: 0.48, y: 0.60),
-                              CGPoint(x: 0.76, y: 0.60), CGPoint(x: 0.76, y: 0.20)]
-                let color = selected ? LCD.paper : LCD.ink
-                for index in 1..<points.count {
-                    let a = CGPoint(x: points[index - 1].x * size.width, y: points[index - 1].y * size.height)
-                    let b = CGPoint(x: points[index].x * size.width, y: points[index].y * size.height)
-                    let count = max(1, Int(hypot(b.x - a.x, b.y - a.y) / 2))
-                    for step in 0...count {
-                        let t = CGFloat(step) / CGFloat(count)
-                        let point = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
-                        context.fill(Path(CGRect(x: point.x.rounded(), y: point.y.rounded(), width: 2, height: 2)),
-                                     with: .color(color))
-                    }
+                let unitX = size.width / CGFloat(configuration.columns)
+                let unitY = size.height / CGFloat(configuration.rows)
+                let pixel = 1 / displayScale
+                var grid = Path()
+                for column in 1..<configuration.columns {
+                    let x = (CGFloat(column) * unitX * displayScale).rounded() / displayScale
+                    grid.addRect(CGRect(x: x, y: 0, width: pixel, height: size.height))
                 }
+                for row in 1..<configuration.rows {
+                    let y = (CGFloat(row) * unitY * displayScale).rounded() / displayScale
+                    grid.addRect(CGRect(x: 0, y: y, width: size.width, height: pixel))
+                }
+                context.fill(grid, with: .color(LCD.ink.opacity(0.08)))
             }
-            PixelBoundary(configuration: configuration, color: selected ? LCD.paper : LCD.ink)
+            PixelWalls(configuration: configuration)
+            PixelBoardOutline()
         }
+        .background(LCD.paper)
         .accessibilityHidden(true)
     }
 }

@@ -7,7 +7,7 @@ cp "$project_root/iOSLab/SnakeEngine.swift" "$simulation_directory/SnakeEngine.s
 export SNAKE_ESTIMATE_ENGINE_SHA256="$(shasum -a 256 "$simulation_directory/SnakeEngine.swift" | awk '{print $1}')"
 export SNAKE_ESTIMATE_SOURCE_COMMIT="$(git -C "$project_root" rev-parse HEAD)"
 export SNAKE_ESTIMATE_BASE_ENGINE_SHA256="$(git -C "$project_root" show HEAD:iOSLab/SnakeEngine.swift | shasum -a 256 | awk '{print $1}')"
-export SNAKE_ESTIMATE_COMPILER="$(xcrun swiftc --version)"
+export SNAKE_ESTIMATE_COMPILER="$(xcrun swiftc --version 2>&1)"
 xcrun swiftc -O -parse-as-library \
   "$simulation_directory/SnakeEngine.swift" \
   "$project_root/Tests/SnakeDurationSimulation.swift" \
