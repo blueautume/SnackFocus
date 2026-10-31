@@ -2,38 +2,38 @@
 
 一个通用 SwiftUI iOS 实验白板，最低支持 iOS 17。`main` 保持空白画布，每个实验从 `main` 创建独立分支。`blank-canvas` 标签标记最初的白板提交。
 
-## 当前实验：蛇行 · 自动贪吃蛇专注伴侣
+## 当前实验：蛇行 · 动态环路专注伴侣
 
-分支 `experiment/autonomous-snake-focus`，从空白 `main` 独立创建。
+分支 experiment/autonomous-snake-focus，从空白 main 独立创建。
 
-打开即自动运行第一张 **16 × 24 无边界地图**。机器人自行寻找随机食物，四边可环绕，逐步填满棋盘。你可以把手机放在一边开始工作，填满或碰撞结束后会出现休息提示，不会自动开下一局。
+进入后先选地图和速度，看到各档速度对应的模拟预计时长，点击「开始观看」后才运行。只提供动态环路策略；运行中锁定速度、隐藏设置入口。铺满后停止并提醒休息；重开必须通过像素确认框，再回到选择页。
 
-- 原生 Swift 提供「经典环路」与「动态环路」，默认动态。动态策略在进食后尝试重构安全闭环，无合适新路线时沿用旧环；两种策略在当前规则下均能逐步填满。
-- 参考提供的 Snake Xenzia 形态：连续像素蛇身、加宽且有朝向眼睛的头部、渐细尖尾，以及沿身体传递的左右摆动。食物在小十字与像素圆之间周期缩放。首页只保留必要信息，策略与节奏集中在设置。
-- 三档节奏：舒缓 6 步/秒、平稳 10 步/秒、流动 16 步/秒；支持暂停、重开。
-- 前台运行时保持屏幕常亮；暂停、暂时失活或进入后台时停止游戏和计时，恢复原有常亮设置。返回前台继续原局，不补跑后台步数；手动暂停会保持。
-- 提醒仅在应用内出现；进程结束后，下次重新随机开局，不持久化存档。
+- 四图：无边原野（16 × 24 环绕）、口袋原野（12 × 18 环绕）、四面围墙（16 × 24 不穿墙）、横向回廊（16 × 20 左右互通 / 上下有墙）。
+- 慢 / 中 / 快为 6 / 10 / 16 步每秒，选择的是速度。每图 256 局生产模拟，显示 P10–P90 常见分钟范围，不是倒计时。
+- 连续像素蛇身、方向眼睛、尖尾、摆动与食物呼吸。中文选择页、暂停 / 继续 / 重开按钮、提示和确认框统一使用像素字体与矩形效果。
+- 暂停或离开会冻结游戏、计时与动画；返回不补跑。前台运行保持常亮，暂停 / 结束后恢复。
+- 无联网或通知权限，提醒仅在应用内，进程退出不恢复游戏。
 
-这不是固定时长的番茄钟。运行时间取决于策略、食物、节奏、暂停和设备调度。算法的安全与填满性质限于本实验的单蛇、单食物、无障碍环绕地图。
+方案、模拟结果、字体来源和验证见 [Docs/AutonomousSnake.md](Docs/AutonomousSnake.md)。原始数据见 [Docs/SnakeDurationSimulation.json](Docs/SnakeDurationSimulation.json)。
 
-方案、开源调研、算法不变量、界面与验证说明见 [Docs/AutonomousSnake.md](Docs/AutonomousSnake.md)。
+### 验证
 
-### 验证命令
+    Scripts/check-snake.sh
+    Scripts/check-snake-visuals.sh
+    Scripts/check-snake-duration-estimates.sh
 
-```sh
-Scripts/check-snake.sh
-# 渲染几何：头尾、摆动、食物呼吸、成长与穿边：
-Scripts/check-snake-visuals.sh
-# 扩展默认地图的种子数量：
-SNAKE_DEFAULT_SEEDS=1000 Scripts/check-snake.sh
+更改地图或算法后重新模拟：
 
-xcodebuild -project iOSLab.xcodeproj -scheme iOSLab \
-  -configuration Debug -sdk iphonesimulator \
-  -destination 'generic/platform=iOS Simulator' \
-  CODE_SIGNING_ALLOWED=NO build
-```
+    Scripts/estimate-snake-duration.sh --write
 
-Debug 构建支持 `--snake-preview-shape`（真实运行到 64 格，检查头尾与动效）、`--snake-preview-midpoint`、`--snake-preview-filled`、`--snake-preview-near-full` 和 `--snake-preview-last-bite`。追加 `--snake-strategy-classic` 可检查经典策略；`--snake-preview-static` 以暂停状态启动。普通启动与 Release 构建不使用这些参数。
+模拟器构建：
+
+    xcodebuild -project iOSLab.xcodeproj -scheme iOSLab \
+      -configuration Debug -sdk iphonesimulator \
+      -destination 'generic/platform=iOS Simulator' \
+      CODE_SIGNING_ALLOWED=NO build
+
+Debug 可用 --snake-map=courtyard --snake-preview-shape 检查围墙地图。普通启动不自动运行，全部预览参数只对 Debug 生效。
 
 ## 打开运行
 

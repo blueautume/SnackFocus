@@ -26,9 +26,9 @@ private func frame(_ snake: [GridCell], previous: [GridCell]? = nil, progress: D
                               food: food, progress: progress, time: time, reduceMotion: reduced)
 }
 
-private func checkFiniteAndLocal(_ result: SnakeVisualFrame) {
-    expect(result.columns == map.columns * SnakeVisualGeometry.pixelsPerCell, "Wrong raster width")
-    expect(result.rows == map.rows * SnakeVisualGeometry.pixelsPerCell, "Wrong raster height")
+private func checkFiniteAndLocal(_ result: SnakeVisualFrame, configuration: SnakeConfiguration = map) {
+    expect(result.columns == configuration.columns * SnakeVisualGeometry.pixelsPerCell, "Wrong raster width")
+    expect(result.rows == configuration.rows * SnakeVisualGeometry.pixelsPerCell, "Wrong raster height")
     expect(result.dots.count == result.columns * result.rows, "Incomplete raster")
     expect(result.dots.allSatisfy { $0 <= 2 }, "Unknown raster value")
     expect(result.heading.x.isFinite && result.heading.y.isFinite, "Nonfinite heading")
@@ -221,6 +221,82 @@ private func checkManyWrapsAndTranslation() {
     }
 }
 
+private func checkMapTopologies() {
+    let density = SnakeVisualGeometry.pixelsPerCell
+    func render(_ configuration: SnakeConfiguration, before: [GridCell], after: [GridCell], progress: Double) -> SnakeVisualFrame {
+        // Fixtures obey the selected map's actual rules; no test manufactures
+        // an illegal jump through a wall just to exercise interpolation.
+        for body in [before, after] {
+            expect(body.allSatisfy { configuration.contains($0) }, "Fixture outside map")
+            for (a, b) in zip(body, body.dropFirst()) {
+                expect(configuration.areNeighbors(a, b), "Fixture body crosses a wall")
+            }
+        }
+        expect(configuration.areNeighbors(before[0], after[0]), "Fixture head crosses a wall")
+        let result = SnakeVisualGeometry.frame(configuration: configuration, snake: after,
+                                               previousSnake: before, food: nil, progress: progress, time: 0.37)
+        checkFiniteAndLocal(result, configuration: configuration)
+        for point in result.centers {
+            if !configuration.wrapsHorizontally {
+                expect(point.x >= 0.5 && point.x <= Double(configuration.columns) - 0.5, "Interpolation left a horizontal wall")
+            }
+            if !configuration.wrapsVertically {
+                expect(point.y >= 0.5 && point.y <= Double(configuration.rows) - 0.5, "Interpolation left a vertical wall")
+            }
+        }
+        return result
+    }
+
+    let walls = SnakeMap.courtyard.configuration
+    let wallBefore = [GridCell(x: 0, y: 1), GridCell(x: 0, y: 2), GridCell(x: 1, y: 2), GridCell(x: 2, y: 2)]
+    let wallAfter = [GridCell(x: 0, y: 0)] + wallBefore.dropLast()
+    for progress in [0.0, 0.5, 1.0] {
+        let result = render(walls, before: wallBefore, after: wallAfter, progress: progress)
+        expect(close(result.centers[0].y, 1.5 - progress), "Head doesn't approach the wall directly")
+        for index in result.dots.indices where result.dots[index] == 1 {
+            expect(index % result.columns / density < 5 && index / result.columns / density < 5,
+                   "Walled body is mirrored to the opposite edge")
+        }
+    }
+
+    let passage = SnakeMap.passage.configuration
+    let passageBefore = [GridCell(x: 15, y: 0), GridCell(x: 14, y: 0), GridCell(x: 13, y: 0), GridCell(x: 13, y: 1)]
+    let passageAfter = [GridCell(x: 0, y: 0)] + passageBefore.dropLast()
+    let horizontal = render(passage, before: passageBefore, after: passageAfter, progress: 0.5)
+    expect(close(horizontal.centers[0].x, 16), "Passage does not interpolate across its open seam")
+    expect((0..<horizontal.rows).contains { horizontal.dots[$0 * horizontal.columns] == 1 }, "Open left seam loses the head")
+    expect((0..<horizontal.rows).contains { horizontal.dots[$0 * horizontal.columns + horizontal.columns - 1] == 1 }, "Open right seam loses the head")
+    for index in horizontal.dots.indices where horizontal.dots[index] == 1 {
+        expect(index / horizontal.columns / density < 4, "Passage mirrors its top body through the bottom wall")
+    }
+
+    // The renderer handles either independent wrap flag, even though the
+    // current setup choices expose horizontal-only wrapping as the corridor.
+    let verticalOnly = SnakeConfiguration(columns: 16, rows: 24, wrapsHorizontally: false, wrapsVertically: true)
+    let verticalBefore = [GridCell(x: 0, y: 23), GridCell(x: 0, y: 22), GridCell(x: 0, y: 21), GridCell(x: 1, y: 21)]
+    let verticalAfter = [GridCell(x: 0, y: 0)] + verticalBefore.dropLast()
+    let vertical = render(verticalOnly, before: verticalBefore, after: verticalAfter, progress: 0.5)
+    expect(close(vertical.centers[0].y, 24), "Vertical seam takes a long route")
+    expect(vertical.dots[0..<vertical.columns].contains(1), "Open top seam loses the head")
+    expect(vertical.dots[(vertical.rows - 1) * vertical.columns..<vertical.dots.count].contains(1), "Open bottom seam loses the head")
+    for index in vertical.dots.indices where vertical.dots[index] == 1 {
+        expect(index % vertical.columns / density < 4, "Vertical-only wrapping mirrors through a side wall")
+    }
+
+    // Exercise real, consecutive game states on all displayed maps so growth
+    // and interpolation use each map's dimensions and boundary topology.
+    for selectedMap in SnakeMap.allCases {
+        var game = SnakeEngine(configuration: selectedMap.configuration, seed: 42)
+        for _ in 0..<24 {
+            let before = game.snake
+            game.step()
+            for progress in [0.0, 0.5, 1.0] {
+                _ = render(selectedMap.configuration, before: before, after: game.snake, progress: progress)
+            }
+        }
+    }
+}
+
 private func benchmark() {
     var game = SnakeEngine(seed: 42)
     while game.phase == .playing { game.step() }
@@ -246,7 +322,8 @@ private enum SnakeVisualChecks {
         checkAnatomyAndWaves()
         checkFoodPulse()
         checkManyWrapsAndTranslation()
-        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, wave, pulse, Reduced Motion, long paths and translation.")
+        checkMapTopologies()
+        print("Visual geometry checks passed: growth, seams/corners, head/eyes/tail, wave, pulse, Reduced Motion, long paths, translation and independent map boundaries.")
         if ProcessInfo.processInfo.arguments.contains("--benchmark") { benchmark() }
     }
 }

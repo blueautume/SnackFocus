@@ -44,7 +44,9 @@ enum SnakeVisualGeometry {
                                   configuration: configuration)
         let heading = centers.count > 1 ? (centers[0] - centers[1]).normalized : SnakeVisualPoint(x: 1, y: 0)
         let samples = bodySamples(centers: centers, time: time, reduceMotion: reduceMotion)
-        var raster = SnakePixelRaster(columns: columns, rows: rows)
+        var raster = SnakePixelRaster(columns: columns, rows: rows,
+                                      wrapsHorizontally: configuration.wrapsHorizontally,
+                                      wrapsVertically: configuration.wrapsVertically)
         for sample in samples {
             raster.disc(center: sample.center, radius: sample.radius, value: 1)
         }
@@ -86,11 +88,17 @@ enum SnakeVisualGeometry {
         result.reserveCapacity(snake.count)
         for (index, cell) in snake.enumerated() {
             let old = previous.indices.contains(index) ? previous[index] : (previous.last ?? cell)
-            let x = Double(old.x) + 0.5 + shortest(Double(cell.x - old.x), period: Double(configuration.columns)) * progress
-            let y = Double(old.y) + 0.5 + shortest(Double(cell.y - old.y), period: Double(configuration.rows)) * progress
+            let rawX = Double(cell.x - old.x)
+            let rawY = Double(cell.y - old.y)
+            let dx = configuration.wrapsHorizontally ? shortest(rawX, period: Double(configuration.columns)) : rawX
+            let dy = configuration.wrapsVertically ? shortest(rawY, period: Double(configuration.rows)) : rawY
+            let x = Double(old.x) + 0.5 + dx * progress
+            let y = Double(old.y) + 0.5 + dy * progress
             if let last = result.last {
-                result.append(SnakeVisualPoint(x: last.x + shortest(x - last.x, period: Double(configuration.columns)),
-                                               y: last.y + shortest(y - last.y, period: Double(configuration.rows))))
+                result.append(SnakeVisualPoint(
+                    x: configuration.wrapsHorizontally ? last.x + shortest(x - last.x, period: Double(configuration.columns)) : x,
+                    y: configuration.wrapsVertically ? last.y + shortest(y - last.y, period: Double(configuration.rows)) : y
+                ))
             } else {
                 result.append(SnakeVisualPoint(x: x, y: y))
             }
@@ -146,12 +154,16 @@ enum SnakeVisualGeometry {
 private struct SnakePixelRaster {
     let columns: Int
     let rows: Int
+    let wrapsHorizontally: Bool
+    let wrapsVertically: Bool
     var dots: [UInt8]
     private let density = Double(SnakeVisualGeometry.pixelsPerCell)
 
-    init(columns: Int, rows: Int) {
+    init(columns: Int, rows: Int, wrapsHorizontally: Bool, wrapsVertically: Bool) {
         self.columns = columns
         self.rows = rows
+        self.wrapsHorizontally = wrapsHorizontally
+        self.wrapsVertically = wrapsVertically
         dots = [UInt8](repeating: 0, count: columns * rows)
     }
 
@@ -185,6 +197,8 @@ private struct SnakePixelRaster {
     }
 
     private mutating func put(x: Int, y: Int, value: UInt8) {
+        if !wrapsHorizontally && !(0..<columns).contains(x) { return }
+        if !wrapsVertically && !(0..<rows).contains(y) { return }
         let wrappedX = (x % columns + columns) % columns
         let wrappedY = (y % rows + rows) % rows
         dots[wrappedY * columns + wrappedX] = value

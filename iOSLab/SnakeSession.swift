@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import UIKit
 
-enum SnakeSpeed: String, CaseIterable, Identifiable {
+enum SnakeSpeed: String, CaseIterable, Identifiable, Sendable {
     case calm
     case steady
     case flow
@@ -11,9 +11,9 @@ enum SnakeSpeed: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .calm: return "舒缓"
-        case .steady: return "平稳"
-        case .flow: return "流动"
+        case .calm: return "慢速"
+        case .steady: return "中速"
+        case .flow: return "快速"
         }
     }
 
@@ -28,10 +28,20 @@ enum SnakeSpeed: String, CaseIterable, Identifiable {
     var interval: TimeInterval { 1 / movesPerSecond }
 }
 
+enum SnakeSessionStage: Equatable, Sendable {
+    case setup
+    case playing
+    case finished
+}
+
 /// The game clock counts foreground play only. Rendering can interpolate each
 /// completed logical move independently of this fixed-step scheduler.
 @MainActor
 final class SnakeSession: ObservableObject {
+    @Published private(set) var stage: SnakeSessionStage = .setup
+    @Published private(set) var selectedMap: SnakeMap = .meadow
+    @Published private(set) var selectedSpeed: SnakeSpeed = .steady
+    @Published private(set) var showsRestartConfirmation = false
     @Published private(set) var engine: SnakeEngine
     @Published private(set) var previousSnake: [GridCell]
     @Published private(set) var elapsedSeconds: TimeInterval = 0
@@ -40,22 +50,9 @@ final class SnakeSession: ObservableObject {
     @Published private(set) var movementBeganAt = Date()
     @Published private(set) var movementBeganAtElapsed: TimeInterval = 0
     @Published private(set) var moveDuration: Double = SnakeSpeed.steady.interval
-    @Published var speed: SnakeSpeed = .steady {
-        didSet {
-            guard speed != oldValue, isRunning else { return }
-            scheduleLoop()
-        }
-    }
-    @Published var strategy: SnakeStrategy = .dynamicCycle {
-        didSet {
-            guard strategy != oldValue else { return }
-            // A fresh body belongs to the selected strategy's initial cycle.
-            restart()
-        }
-    }
-
-    var isRunning: Bool { hasStarted && !isPaused && !isInBackground && !hasEnded }
-    var hasEnded: Bool { engine.phase != .playing }
+    var speed: SnakeSpeed { selectedSpeed }
+    var isRunning: Bool { stage == .playing && !isPaused && !isInBackground && !showsRestartConfirmation }
+    var hasEnded: Bool { stage == .finished }
     var occupancy: Double { Double(engine.snake.count) / Double(engine.configuration.cellCount) }
 
     private let clock = ContinuousClock()
@@ -63,29 +60,38 @@ final class SnakeSession: ObservableObject {
     private var elapsedBeforeActiveSegment: TimeInterval = 0
     private var loop: Task<Void, Never>?
     private var loopGeneration: UInt64 = 0
-    private var hasStarted = false
+    private var restartWasRunning = false
     private let screenAwakeToken = UUID()
     private var holdsScreenAwake = false
 
     init() {
-        let selectedStrategy: SnakeStrategy
+        var initialMap = SnakeMap.meadow
+        var initialSpeed = SnakeSpeed.steady
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        selectedStrategy = arguments.contains("--snake-strategy-classic") ? .safeShortcuts : .dynamicCycle
-        #else
-        selectedStrategy = .dynamicCycle
+        if let argument = arguments.first(where: { $0.hasPrefix("--snake-map=") }),
+           let map = SnakeMap(rawValue: String(argument.dropFirst("--snake-map=".count))) {
+            initialMap = map
+        }
+        if let argument = arguments.first(where: { $0.hasPrefix("--snake-speed=") }),
+           let speed = SnakeSpeed(rawValue: String(argument.dropFirst("--snake-speed=".count))) {
+            initialSpeed = speed
+        }
         #endif
-        strategy = selectedStrategy
-        var initial = SnakeEngine(strategy: selectedStrategy)
+        selectedMap = initialMap
+        selectedSpeed = initialSpeed
+        var initial = SnakeEngine(configuration: initialMap.configuration)
         #if DEBUG
-        // Launch arguments are only a simulator inspection aid. A regular
-        // launch, including every Release build, always starts a fresh game.
+        // Only explicit Debug previews bypass setup. Release builds ignore all
+        // launch arguments and always wait for the user's Begin action.
         let stopsBeforeLastBite = arguments.contains("--snake-preview-last-bite")
         let nearFull = arguments.contains("--snake-preview-near-full")
         let midpoint = arguments.contains("--snake-preview-midpoint")
         let shape = arguments.contains("--snake-preview-shape")
-        if arguments.contains("--snake-preview-filled") || nearFull || stopsBeforeLastBite || midpoint || shape {
-            initial = SnakeEngine(seed: 42, strategy: selectedStrategy)
+        let preview = !arguments.contains("--snake-preview-setup")
+            && (arguments.contains("--snake-preview-filled") || nearFull || stopsBeforeLastBite || midpoint || shape)
+        if preview {
+            initial = SnakeEngine(configuration: initialMap.configuration, seed: 42)
             let fillCompletely = arguments.contains("--snake-preview-filled")
             let target = fillCompletely ? initial.configuration.cellCount
                 : (stopsBeforeLastBite ? initial.configuration.cellCount - 1
@@ -101,8 +107,13 @@ final class SnakeSession: ObservableObject {
         #endif
         engine = initial
         previousSnake = initial.snake
+        moveDuration = initialSpeed.interval
         #if DEBUG
-        isPaused = arguments.contains("--snake-preview-static")
+        if preview {
+            stage = initial.phase == .playing ? .playing : .finished
+            isPaused = stage == .playing && arguments.contains("--snake-preview-static")
+            startRunning()
+        }
         #endif
     }
 
@@ -114,8 +125,26 @@ final class SnakeSession: ObservableObject {
         }
     }
 
-    func start() {
-        hasStarted = true
+    func selectMap(_ map: SnakeMap) {
+        guard stage == .setup, map != selectedMap else { return }
+        selectedMap = map
+        prepareGame()
+    }
+
+    func selectSpeed(_ speed: SnakeSpeed) {
+        guard stage == .setup else { return }
+        selectedSpeed = speed
+        moveDuration = speed.interval
+    }
+
+    func begin() {
+        guard stage == .setup, !showsRestartConfirmation else { return }
+        prepareGame()
+        stage = .playing
+        startRunning()
+    }
+
+    private func startRunning() {
         guard isRunning else {
             synchronizeScreenAwake()
             return
@@ -127,12 +156,11 @@ final class SnakeSession: ObservableObject {
     }
 
     func togglePause() {
-        guard !hasEnded else { return }
+        guard stage == .playing, !showsRestartConfirmation else { return }
         if isPaused {
             isPaused = false
-            start()
+            startRunning()
         } else {
-            hasStarted = true
             isPaused = true
             freezeElapsedTime()
             cancelLoop()
@@ -140,18 +168,51 @@ final class SnakeSession: ObservableObject {
         }
     }
 
-    func restart() {
+    func requestRestart() {
+        guard stage != .setup, !showsRestartConfirmation else { return }
+        restartWasRunning = isRunning
+        freezeElapsedTime()
+        cancelLoop()
+        if stage == .playing { isPaused = true }
+        showsRestartConfirmation = true
+        synchronizeScreenAwake()
+    }
+
+    func cancelRestart() {
+        guard showsRestartConfirmation else { return }
+        showsRestartConfirmation = false
+        let shouldResume = restartWasRunning
+        restartWasRunning = false
+        if stage == .playing, shouldResume {
+            isPaused = false
+            startRunning()
+        } else {
+            synchronizeScreenAwake()
+        }
+    }
+
+    func confirmRestart() {
+        guard showsRestartConfirmation else { return }
+        freezeElapsedTime()
+        cancelLoop()
+        showsRestartConfirmation = false
+        restartWasRunning = false
+        stage = .setup
+        prepareGame()
+        synchronizeScreenAwake()
+    }
+
+    private func prepareGame() {
         cancelLoop()
         activeStartedAt = nil
         elapsedBeforeActiveSegment = 0
         elapsedSeconds = 0
-        engine = SnakeEngine(strategy: strategy)
+        engine = SnakeEngine(configuration: selectedMap.configuration)
         previousSnake = engine.snake
         movementBeganAt = Date()
         movementBeganAtElapsed = 0
         moveDuration = speed.interval
         isPaused = false
-        start()
     }
 
     func sceneDidBecomeActive() {
@@ -161,7 +222,7 @@ final class SnakeSession: ObservableObject {
         previousSnake = engine.snake
         movementBeganAt = Date()
         movementBeganAtElapsed = elapsedSeconds
-        if hasStarted && !isPaused { start() }
+        startRunning()
     }
 
     func sceneDidEnterBackground() {
@@ -208,7 +269,8 @@ final class SnakeSession: ObservableObject {
         movementBeganAtElapsed = elapsedSeconds
         moveDuration = speed.interval
         engine.step()
-        guard hasEnded else { return }
+        guard engine.phase != .playing else { return }
+        stage = .finished
         freezeElapsedTime()
         cancelLoop()
         synchronizeScreenAwake()

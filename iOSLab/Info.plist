@@ -4,6 +4,10 @@
 <dict>
     <key>CFBundleDisplayName</key>
     <string>$(APP_DISPLAY_NAME)</string>
+    <key>UIAppFonts</key>
+    <array>
+        <string>FusionPixel/fusion-pixel-12px-monospaced-zh_hans.otf</string>
+    </array>
     <key>UIApplicationSupportsIndirectInputEvents</key>
     <true/>
     <key>UILaunchScreen</key>

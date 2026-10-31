@@ -8,9 +8,85 @@ struct GridCell: Hashable, Sendable {
 struct SnakeConfiguration: Equatable, Sendable {
     let columns: Int
     let rows: Int
+    let wrapsHorizontally: Bool
+    let wrapsVertically: Bool
+
+    init(columns: Int, rows: Int, wrapsHorizontally: Bool = true, wrapsVertically: Bool = true) {
+        self.columns = columns
+        self.rows = rows
+        self.wrapsHorizontally = wrapsHorizontally
+        self.wrapsVertically = wrapsVertically
+    }
 
     static let firstMap = SnakeConfiguration(columns: 16, rows: 24)
     var cellCount: Int { columns * rows }
+
+    func contains(_ cell: GridCell) -> Bool {
+        (0..<columns).contains(cell.x) && (0..<rows).contains(cell.y)
+    }
+
+    func resolved(_ cell: GridCell) -> GridCell? {
+        guard columns > 0, rows > 0 else { return nil }
+        if !wrapsHorizontally && !(0..<columns).contains(cell.x) { return nil }
+        if !wrapsVertically && !(0..<rows).contains(cell.y) { return nil }
+        return GridCell(x: (cell.x % columns + columns) % columns,
+                        y: (cell.y % rows + rows) % rows)
+    }
+
+    func areNeighbors(_ a: GridCell, _ b: GridCell) -> Bool {
+        guard contains(a), contains(b) else { return false }
+        let rawX = abs(a.x - b.x)
+        let rawY = abs(a.y - b.y)
+        let dx = wrapsHorizontally ? min(rawX, columns - rawX) : rawX
+        let dy = wrapsVertically ? min(rawY, rows - rawY) : rawY
+        return dx + dy == 1
+    }
+
+    func neighbors(of cell: GridCell) -> [GridCell] {
+        guard contains(cell) else { return [] }
+        var result: [GridCell] = []
+        for raw in [GridCell(x: cell.x + 1, y: cell.y), GridCell(x: cell.x - 1, y: cell.y),
+                    GridCell(x: cell.x, y: cell.y + 1), GridCell(x: cell.x, y: cell.y - 1)] {
+            if let neighbor = resolved(raw), !result.contains(neighbor) { result.append(neighbor) }
+        }
+        return result
+    }
+}
+
+enum SnakeMap: String, CaseIterable, Identifiable, Sendable {
+    case meadow
+    case pocket
+    case courtyard
+    case passage
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .meadow: return "无边原野"
+        case .pocket: return "口袋原野"
+        case .courtyard: return "四面围墙"
+        case .passage: return "横向回廊"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .meadow: return "16 × 24 · 四边互通"
+        case .pocket: return "12 × 18 · 小型环绕棋盘"
+        case .courtyard: return "16 × 24 · 四面墙壁"
+        case .passage: return "16 × 20 · 左右互通，上下有墙"
+        }
+    }
+
+    var configuration: SnakeConfiguration {
+        switch self {
+        case .meadow: return .firstMap
+        case .pocket: return SnakeConfiguration(columns: 12, rows: 18)
+        case .courtyard: return SnakeConfiguration(columns: 16, rows: 24, wrapsHorizontally: false, wrapsVertically: false)
+        case .passage: return SnakeConfiguration(columns: 16, rows: 20, wrapsHorizontally: true, wrapsVertically: false)
+        }
+    }
 }
 
 enum SnakePhase: Equatable, Sendable {
@@ -19,25 +95,12 @@ enum SnakePhase: Equatable, Sendable {
     case collision
 }
 
-enum SnakeStrategy: String, CaseIterable, Identifiable, Equatable, Sendable {
-    case safeShortcuts
-    case dynamicCycle
+/// A deterministic rectangular game. Both dimensions must be >= 2 and at least
+/// one even so a spanning cycle exists, including when every edge is a wall.
 
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .safeShortcuts: return "经典环路"
-        case .dynamicCycle: return "动态环路"
-        }
-    }
-}
-
-/// A deterministic toroidal game. Maps require both dimensions >= 2 and at
-/// least one even dimension so the serpentine Hamiltonian cycle can close.
 struct SnakeEngine: Sendable {
     let configuration: SnakeConfiguration
     let seed: UInt64
-    let strategy: SnakeStrategy
     private(set) var cycle: [GridCell]
     private(set) var cycleReplans = 0
     private(set) var replanAttempts = 0
@@ -53,15 +116,13 @@ struct SnakeEngine: Sendable {
     private var random: SnakeRandom
 
     init(configuration: SnakeConfiguration = .firstMap,
-         seed: UInt64 = UInt64.random(in: UInt64.min...UInt64.max),
-         strategy: SnakeStrategy = .dynamicCycle) {
+         seed: UInt64 = UInt64.random(in: UInt64.min...UInt64.max)) {
         precondition(configuration.columns >= 2 && configuration.rows >= 2,
                      "Snake maps need at least two cells on each axis.")
         precondition(configuration.columns.isMultiple(of: 2) || configuration.rows.isMultiple(of: 2),
-                     "The toroidal Hamiltonian map needs at least one even dimension.")
+                     "The Hamiltonian map needs at least one even dimension.")
         self.configuration = configuration
         self.seed = seed
-        self.strategy = strategy
         var generator = SnakeRandom(seed: seed)
         let horizontal: Bool
         if configuration.columns.isMultiple(of: 2) && configuration.rows.isMultiple(of: 2) {
@@ -73,21 +134,39 @@ struct SnakeEngine: Sendable {
         let height = horizontal ? configuration.rows : configuration.columns
         let reflectX = generator.integer(lessThan: 2) == 0
         let reflectY = generator.integer(lessThan: 2) == 0
-        let offsetX = generator.integer(lessThan: configuration.columns)
-        let offsetY = generator.integer(lessThan: configuration.rows)
+        let offsetX = configuration.wrapsHorizontally ? generator.integer(lessThan: configuration.columns) : 0
+        let offsetY = configuration.wrapsVertically ? generator.integer(lessThan: configuration.rows) : 0
         var route: [GridCell] = []
         route.reserveCapacity(configuration.cellCount)
-        for row in 0..<height {
-            for column in 0..<width {
-                let along = row.isMultiple(of: 2) ? column : width - 1 - column
-                var x = horizontal ? along : row
-                var y = horizontal ? row : along
-                if reflectX { x = configuration.columns - 1 - x }
-                if reflectY { y = configuration.rows - 1 - y }
-                route.append(GridCell(x: (x + offsetX) % configuration.columns,
-                                      y: (y + offsetY) % configuration.rows))
+        if configuration.wrapsHorizontally && configuration.wrapsVertically {
+            for row in 0..<height {
+                for column in 0..<width {
+                    route.append(GridCell(x: row.isMultiple(of: 2) ? column : width - 1 - column, y: row))
+                }
+            }
+        } else {
+            // Reserve the first column as a return rail. The other columns
+            // snake through an even number of rows, then close up the rail.
+            // This cycle uses no seam at all before allowed-axis translation.
+            route.append(GridCell(x: 0, y: 0))
+            for row in 0..<height {
+                for column in 1..<width {
+                    route.append(GridCell(x: row.isMultiple(of: 2) ? column : width - column, y: row))
+                }
+            }
+            for row in stride(from: height - 1, through: 1, by: -1) {
+                route.append(GridCell(x: 0, y: row))
             }
         }
+        route = route.map { cell in
+            var x = horizontal ? cell.x : cell.y
+            var y = horizontal ? cell.y : cell.x
+            if reflectX { x = configuration.columns - 1 - x }
+            if reflectY { y = configuration.rows - 1 - y }
+            return GridCell(x: (x + offsetX) % configuration.columns,
+                            y: (y + offsetY) % configuration.rows)
+        }
+
         if generator.integer(lessThan: 2) == 0 { route.reverse() }
         // Rotating the cycle also varies the starting head relative to the seams.
         let start = generator.integer(lessThan: route.count)
@@ -118,14 +197,7 @@ struct SnakeEngine: Sendable {
     }
 
     func neighbors(of cell: GridCell) -> [GridCell] {
-        let columns = configuration.columns
-        let rows = configuration.rows
-        return [
-            GridCell(x: (cell.x + 1) % columns, y: cell.y),
-            GridCell(x: (cell.x + columns - 1) % columns, y: cell.y),
-            GridCell(x: cell.x, y: (cell.y + 1) % rows),
-            GridCell(x: cell.x, y: (cell.y + rows - 1) % rows)
-        ]
+        configuration.neighbors(of: cell)
     }
 
     var nextCell: GridCell? {
@@ -151,10 +223,11 @@ struct SnakeEngine: Sendable {
     }
 
     mutating func step() {
-        guard phase == .playing, let candidate = nextCell, let tail = snake.last else { return }
+        guard phase == .playing, let candidate = nextCell, let tail = snake.last, let head = snake.first else { return }
         let growing = candidate == food
         steps += 1
-        guard !occupied.contains(candidate) || (!growing && candidate == tail) else {
+        guard configuration.areNeighbors(head, candidate),
+              !occupied.contains(candidate) || (!growing && candidate == tail) else {
             phase = .collision
             return
         }
@@ -187,7 +260,7 @@ struct SnakeEngine: Sendable {
                 guard !occupied.contains(cell) else { continue }
                 if rank == 0 {
                     food = cell
-                    if strategy == .dynamicCycle { reconfigureCycle() }
+                    reconfigureCycle()
                     return
                 }
                 rank -= 1
@@ -236,9 +309,9 @@ struct SnakeEngine: Sendable {
                 let secondSquare: Int
                 if attempt < nearby.count {
                     let offset = nearby[attempt]
-                    let x = (firstSquare % columns + offset.0 + columns) % columns
-                    let y = (firstSquare / columns + offset.1 + configuration.rows) % configuration.rows
-                    secondSquare = y * columns + x
+                    guard let square = configuration.resolved(GridCell(x: firstSquare % columns + offset.0,
+                                                                       y: firstSquare / columns + offset.1)) else { continue }
+                    secondSquare = square.y * columns + square.x
                 } else {
                     secondSquare = random.integer(lessThan: cycle.count)
                 }
@@ -279,10 +352,12 @@ private struct SnakeCycleGraph {
         }
     }
 
-    private func corners(square: Int) -> (a: Int, b: Int, c: Int, d: Int) {
+    private func corners(square: Int) -> (a: Int, b: Int, c: Int, d: Int)? {
         let columns = configuration.columns
         let x = square % columns
         let y = square / columns
+        guard (x + 1 < columns || configuration.wrapsHorizontally),
+              (y + 1 < configuration.rows || configuration.wrapsVertically) else { return nil }
         let nextX = (x + 1) % columns
         let nextY = (y + 1) % configuration.rows
         return (square, y * columns + nextX, nextY * columns + x, nextY * columns + nextX)
@@ -291,15 +366,16 @@ private struct SnakeCycleGraph {
     private func connected(_ a: Int, _ b: Int) -> Bool { first[a] == b || second[a] == b }
 
     func removedEdgeOrigins(square: Int) -> (Int, Int)? {
-        let (a, b, c, d) = corners(square: square)
+        guard let points = corners(square: square) else { return nil }
+        let (a, b, c, d) = points
         if connected(a, b) && connected(c, d) && !connected(a, c) && !connected(b, d) { return (a, c) }
         if connected(a, c) && connected(b, d) && !connected(a, b) && !connected(c, d) { return (a, b) }
         return nil
     }
 
     mutating func flip(square: Int) -> Bool {
-        guard let removed = removedEdgeOrigins(square: square) else { return false }
-        let (a, b, c, d) = corners(square: square)
+        guard let removed = removedEdgeOrigins(square: square), let points = corners(square: square) else { return false }
+        let (a, b, c, d) = points
         if removed.1 == c {
             replace(a, removing: b, adding: c)
             replace(b, removing: a, adding: d)
@@ -356,6 +432,8 @@ private struct SnakeCycleGraph {
             indices[cell] = order.count
             order.append(cell)
             let next = first[cell] == previous ? second[cell] : first[cell]
+            guard configuration.areNeighbors(GridCell(x: cell % configuration.columns, y: cell / configuration.columns),
+                                             GridCell(x: next % configuration.columns, y: next / configuration.columns)) else { return nil }
             previous = cell
             cell = next
         }
