@@ -17,6 +17,19 @@ struct PixelLabel: View {
     }
 }
 
+/// Short controls stay on one line. Body copy uses PixelLabel and wraps freely.
+struct PixelControlLabel: View {
+    let text: String
+    var size: CGFloat = 16
+
+    var body: some View {
+        PixelLabel(text: text, size: size)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
+    }
+}
+
 struct PixelButtonStyle: ButtonStyle {
     var emphasized = false
 

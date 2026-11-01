@@ -1,0 +1,67 @@
+/* Setup and controls */
+"app.title" = "SNAKE";
+"setup.map" = "Choose a map";
+"setup.style" = "Snake style";
+"setup.speed" = "Choose a speed";
+"setup.start" = "Start";
+"action.pause" = "Pause";
+"action.resume" = "Resume";
+"action.restart" = "Restart";
+"action.cancel" = "Cancel";
+"action.confirmRestart" = "Restart";
+
+/* Game and dialogs */
+"game.score" = "SCORE";
+"game.time" = "TIME";
+"game.paused" = "Paused";
+"game.clear" = "CLEAR";
+"game.over" = "OVER";
+"rest.title" = "Take a break";
+"rest.message" = "Focused for %@\nStand up and look into the distance.";
+"restart.title" = "Restart?";
+"restart.message" = "End this game and return to setup.\nTime elapsed: %@";
+"duration.range" = "%d–%d min";
+"duration.a11y" = "%@, estimated %d to %d minutes";
+
+/* Map names and geometry descriptions */
+"map.meadow.title" = "Open Field";
+"map.meadow.subtitle" = "16 × 24 · No walls, wraparound edges";
+"map.courtyard.title" = "Outer Walls";
+"map.courtyard.subtitle" = "16 × 24 · One-cell outer wall";
+"map.doubleBars.title" = "Double Bars";
+"map.doubleBars.subtitle" = "16 × 24 · Two horizontal bars and corner walls";
+"map.staggered.title" = "Staggered Walls";
+"map.staggered.subtitle" = "16 × 24 · Staggered horizontal walls";
+"map.twinRails.title" = "Twin Rails";
+"map.twinRails.subtitle" = "16 × 24 · Twin rails and side passages";
+"map.channels.title" = "Channels";
+"map.channels.subtitle" = "16 × 24 · Connected channels";
+"appearance.classic" = "Classic";
+"appearance.modern" = "Modern";
+"speed.zen" = "Zen";
+"speed.calm" = "Calm";
+"speed.steady" = "Steady";
+"speed.flow" = "Brisk";
+
+/* VoiceOver labels and selection values */
+"a11y.app" = "Automatic snake";
+"a11y.start" = "Start with the selected map, snake style and speed";
+"a11y.selected" = "Selected";
+"a11y.notSelected" = "Not selected";
+"a11y.appearance" = "Snake style, %@";
+"a11y.map" = "Map, %@, %@";
+"a11y.pause" = "Pause the game and timer";
+"a11y.resume" = "Resume the game and timer";
+"a11y.restart" = "Restart. Confirm to return to setup";
+"a11y.restartFinished" = "Restart. Return to setup without confirmation";
+"a11y.score" = "Food eaten: %d";
+"a11y.time" = "Focus time: %d min %d sec";
+"a11y.paused" = "Game and focus timer paused";
+"a11y.board" = "Automatic snake, %@";
+"a11y.occupancy" = "Snake: %d cells. Playable: %d cells";
+"a11y.boundary.both" = "board with passages across both axes";
+"a11y.boundary.horizontal" = "board with left and right passages, walls at the top and bottom";
+"a11y.boundary.vertical" = "board with top and bottom passages, walls at the left and right";
+"a11y.boundary.closed" = "board with walls on all sides";
+"a11y.boundary.board" = "%@";
+"a11y.boundary.walls" = "%@, including %d wall cells";

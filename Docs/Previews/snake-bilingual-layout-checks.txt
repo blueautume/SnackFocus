@@ -1,0 +1,79 @@
+SnakeFocus bilingual UI validation — 2026-11-01
+Actual ContentView rendered on iOS 26.3 in synthetic UIKit viewports, standard text size.
+
+finished-manifest.txt
+en_320x568_finished: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_375x667_finished: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_390x844_finished: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_finished: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_finished_bottom: contentSize=(667.0, 524.0), bounds=(0.0, 149.0, 667.0, 375.0)
+en_768x1024_finished: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_finished: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_375x667_finished: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_390x844_finished: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_finished: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_finished_bottom: contentSize=(667.0, 524.0), bounds=(0.0, 149.0, 667.0, 375.0)
+zh-Hans_768x1024_finished: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+regular-manifest.txt
+en_320x568_setup: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_320x568_setup_bottom: contentSize=(320.0, 715.0), bounds=(0.0, 147.0, 320.0, 568.0)
+en_320x568_playing: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_320x568_playing_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+en_320x568_paused: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_320x568_paused_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+en_320x568_restart: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_320x568_restart_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+en_375x667_setup: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_375x667_playing: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_375x667_paused: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_375x667_restart: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_390x844_setup: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_390x844_playing: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_390x844_paused: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_390x844_restart: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_setup: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_setup_bottom: contentSize=(667.0, 625.0), bounds=(0.0, 250.0, 667.0, 375.0)
+en_667x375_playing: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_playing_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+en_667x375_paused: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_paused_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+en_667x375_restart: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_667x375_restart_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+en_768x1024_setup: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_768x1024_playing: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_768x1024_paused: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+en_768x1024_restart: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_setup: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_setup_bottom: contentSize=(320.0, 715.0), bounds=(0.0, 147.0, 320.0, 568.0)
+zh-Hans_320x568_playing: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_playing_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+zh-Hans_320x568_paused: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_paused_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+zh-Hans_320x568_restart: bounds=(0.0, 0.0, 320.0, 568.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_320x568_restart_bottom: contentSize=(320.0, 587.0), bounds=(0.0, 19.0, 320.0, 568.0)
+zh-Hans_375x667_setup: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_375x667_playing: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_375x667_paused: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_375x667_restart: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_390x844_setup: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_390x844_playing: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_390x844_paused: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_390x844_restart: bounds=(0.0, 0.0, 390.0, 844.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_setup: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_setup_bottom: contentSize=(667.0, 625.0), bounds=(0.0, 250.0, 667.0, 375.0)
+zh-Hans_667x375_playing: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_playing_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+zh-Hans_667x375_paused: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_paused_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+zh-Hans_667x375_restart: bounds=(0.0, 0.0, 667.0, 375.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_667x375_restart_bottom: contentSize=(667.0, 587.0), bounds=(0.0, 212.0, 667.0, 375.0)
+zh-Hans_768x1024_setup: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_768x1024_playing: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_768x1024_paused: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+zh-Hans_768x1024_restart: bounds=(0.0, 0.0, 768.0, 1024.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+system-en_US-manifest.txt
+Locale.current=en_US, preferredLocalizations=["en"]
+system-en_US_375x667_setup: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
+system-zh_CN-manifest.txt
+Locale.current=zh_CN, preferredLocalizations=["zh-Hans"]
+system-zh_CN_375x667_setup: bounds=(0.0, 0.0, 375.0, 667.0), safeArea=UIEdgeInsets(top: 20.0, left: 0.0, bottom: 0.0, right: 0.0), font=true
