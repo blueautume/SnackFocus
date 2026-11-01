@@ -1,0 +1,137 @@
+{
+  "source": "Actual simulator screenshots of native renderers, not generated concepts",
+  "forms": [
+    {
+      "id": "S01",
+      "rawValue": "pixel",
+      "title": "像素生物",
+      "file": "Snakes/S01-pixel.png"
+    },
+    {
+      "id": "S02",
+      "rawValue": "ribbon",
+      "title": "流动丝带",
+      "file": "Snakes/S02-ribbon.png"
+    },
+    {
+      "id": "S03",
+      "rawValue": "ink",
+      "title": "水墨游龙",
+      "file": "Snakes/S03-ink.png"
+    },
+    {
+      "id": "S04",
+      "rawValue": "neon",
+      "title": "霓虹光管",
+      "file": "Snakes/S04-neon.png"
+    },
+    {
+      "id": "S05",
+      "rawValue": "origami",
+      "title": "折纸鳞片",
+      "file": "Snakes/S05-origami.png"
+    },
+    {
+      "id": "S06",
+      "rawValue": "clay",
+      "title": "软糖黏土",
+      "file": "Snakes/S06-clay.png"
+    },
+    {
+      "id": "S07",
+      "rawValue": "chrome",
+      "title": "液态金属",
+      "file": "Snakes/S07-chrome.png"
+    },
+    {
+      "id": "S08",
+      "rawValue": "glass",
+      "title": "冰透玻璃",
+      "file": "Snakes/S08-glass.png"
+    },
+    {
+      "id": "S09",
+      "rawValue": "pearl",
+      "title": "珍珠陶瓷",
+      "file": "Snakes/S09-pearl.png"
+    },
+    {
+      "id": "S10",
+      "rawValue": "hologram",
+      "title": "全息晶体",
+      "file": "Snakes/S10-hologram.png"
+    }
+  ],
+  "themes": [
+    {
+      "id": "T01",
+      "rawValue": "atelier",
+      "title": "轻盈工作室",
+      "form": "clay",
+      "file": "Interfaces/T01-atelier.png"
+    },
+    {
+      "id": "T02",
+      "rawValue": "zen",
+      "title": "侘寂庭院",
+      "form": "ink",
+      "file": "Interfaces/T02-zen.png"
+    },
+    {
+      "id": "T03",
+      "rawValue": "arcade",
+      "title": "午夜街机",
+      "form": "neon",
+      "file": "Interfaces/T03-arcade.png"
+    },
+    {
+      "id": "T04",
+      "rawValue": "observatory",
+      "title": "轨道观测站",
+      "form": "chrome",
+      "file": "Interfaces/T04-observatory.png"
+    },
+    {
+      "id": "T05",
+      "rawValue": "gallery",
+      "title": "艺术画廊",
+      "form": "origami",
+      "file": "Interfaces/T05-gallery.png"
+    },
+    {
+      "id": "T06",
+      "rawValue": "dashboard",
+      "title": "专注仪表盘",
+      "form": "glass",
+      "file": "Interfaces/T06-dashboard.png"
+    },
+    {
+      "id": "T07",
+      "rawValue": "paper",
+      "title": "纸上手记",
+      "form": "ribbon",
+      "file": "Interfaces/T07-paper.png"
+    },
+    {
+      "id": "T08",
+      "rawValue": "candy",
+      "title": "糖果游乐场",
+      "form": "pearl",
+      "file": "Interfaces/T08-candy.png"
+    },
+    {
+      "id": "T09",
+      "rawValue": "terminal",
+      "title": "极客终端",
+      "form": "pixel",
+      "file": "Interfaces/T09-terminal.png"
+    },
+    {
+      "id": "T10",
+      "rawValue": "aurora",
+      "title": "极光沉浸",
+      "form": "hologram",
+      "file": "Interfaces/T10-aurora.png"
+    }
+  ]
+}

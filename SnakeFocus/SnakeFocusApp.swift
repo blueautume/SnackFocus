@@ -4,8 +4,15 @@ import SwiftUI
 struct SnakeFocusApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .preferredColorScheme(.light)
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--lab-board-only") {
+                LabReferenceView()
+            } else {
+                DesignLabView()
+            }
+            #else
+            DesignLabView()
+            #endif
         }
     }
 }
