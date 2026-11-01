@@ -2,9 +2,22 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var session = SnakeSession()
+    @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AccessibilityFocusState private var restartTitleFocused: Bool
+
+    #if DEBUG
+    init() {}
+
+    /// Inject a session for previews and layout checks without changing live state.
+    @MainActor init(session: SnakeSession) {
+        _session = StateObject(wrappedValue: session)
+    }
+    #endif
+
+    private var strings: SnakeStrings { SnakeStrings(locale: locale) }
 
     var body: some View {
         GeometryReader { geometry in
@@ -51,8 +64,8 @@ struct ContentView: View {
 
     private var header: some View {
         HStack {
-            PixelText(text: "SNAKE", pixel: 3)
-                .accessibilityLabel("自动贪吃蛇")
+            PixelText(text: strings.text("app.title"), pixel: 3)
+                .accessibilityLabel(strings.text("a11y.app"))
             Spacer()
         }
         .frame(height: 36)
@@ -62,14 +75,16 @@ struct ContentView: View {
         let contentWidth = max(0, min(size.width, 660) - 40)
         let sectionGap: CGFloat = size.height < 700 ? 14 : 18
         let maximumThumbnailHeight = min(240, floor(max(0, contentWidth - 24) / 3 * 1.5))
-        let reservedHeight: CGFloat = 356 + sectionGap * 4
+        // Four columns only when every translated label and estimate has room.
+        let speedColumnCount = contentWidth >= 334 && !dynamicTypeSize.isAccessibilitySize ? 4 : 2
+        let reservedHeight: CGFloat = 356 + sectionGap * 4 + (speedColumnCount == 2 ? 90 : 0)
         let thumbnailHeight = min(maximumThumbnailHeight, max(108, floor((size.height - reservedHeight) / 2)))
         return VStack(alignment: .leading, spacing: 0) {
             header
             Spacer(minLength: sectionGap)
 
             VStack(alignment: .leading, spacing: 10) {
-                PixelLabel(text: "选择地图", size: 18)
+                PixelLabel(text: strings.text("setup.map"), size: 18)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                     ForEach(SnakeMap.allCases) { map in
                         mapChoice(map, height: thumbnailHeight)
@@ -79,7 +94,7 @@ struct ContentView: View {
             Spacer(minLength: sectionGap)
 
             VStack(alignment: .leading, spacing: 12) {
-                PixelLabel(text: "选择蛇形态", size: 18)
+                PixelLabel(text: strings.text("setup.style"), size: 18)
                 HStack(spacing: 10) {
                     ForEach(SnakeAppearance.allCases) { appearance in appearanceChoice(appearance) }
                 }
@@ -87,31 +102,33 @@ struct ContentView: View {
             Spacer(minLength: sectionGap)
 
             VStack(alignment: .leading, spacing: 12) {
-                PixelLabel(text: "选择速度", size: 18)
-                HStack(spacing: 10) {
+                PixelLabel(text: strings.text("setup.speed"), size: 18)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: speedColumnCount), spacing: 10) {
                     ForEach(SnakeSpeed.allCases) { speed in speedChoice(speed) }
                 }
             }
             Spacer(minLength: sectionGap)
 
             Button { session.begin() } label: {
-                PixelLabel(text: "开始游戏", size: 24)
+                PixelControlLabel(text: strings.text("setup.start"), size: 24)
                     .frame(minHeight: 56)
             }
             .buttonStyle(PixelButtonStyle(emphasized: true))
-            .accessibilityLabel("按所选地图、蛇形态和速度开始游戏")
+            .accessibilityLabel(strings.text("a11y.start"))
+            .accessibilityIdentifier("setup.start")
         }
     }
 
     private func appearanceChoice(_ appearance: SnakeAppearance) -> some View {
         let selected = appearance == session.selectedAppearance
         return Button { session.selectAppearance(appearance) } label: {
-            PixelLabel(text: appearance.label, size: 18)
+            PixelControlLabel(text: strings.text("appearance.\(appearance.rawValue)"), size: 18)
                 .frame(maxWidth: .infinity, minHeight: 52)
         }
         .buttonStyle(PixelChoiceStyle(selected: selected))
-        .accessibilityLabel("蛇形态，\(appearance.label)")
-        .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityLabel(strings.format("a11y.appearance", strings.text("appearance.\(appearance.rawValue)")))
+        .accessibilityIdentifier("appearance.\(appearance.rawValue)")
+        .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -126,8 +143,9 @@ struct ContentView: View {
                 .frame(height: height)
         }
         .buttonStyle(PixelMapChoiceStyle(selected: selected))
-        .accessibilityLabel("地图，\(map.title)，\(map.subtitle)")
-        .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityLabel(strings.format("a11y.map", strings.text("map.\(map.rawValue).title"), strings.text("map.\(map.rawValue).subtitle")))
+        .accessibilityIdentifier("map.\(map.rawValue)")
+        .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -136,16 +154,17 @@ struct ContentView: View {
         let estimate = SnakeDurationEstimates.estimate(for: session.selectedMap, movesPerSecond: speed.movesPerSecond)
         return Button { session.selectSpeed(speed) } label: {
             VStack(spacing: 8) {
-                PixelLabel(text: speed.label, size: 18)
-                PixelLabel(text: "\(estimate.lowerMinutes)-\(estimate.upperMinutes)分", size: 12)
+                PixelControlLabel(text: strings.text("speed.\(speed.rawValue)"), size: 18)
+                PixelControlLabel(text: strings.format("duration.range", estimate.lowerMinutes, estimate.upperMinutes), size: 12)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 80)
-            .padding(.horizontal, 3)
+            .padding(.horizontal, 4)
         }
         .buttonStyle(PixelChoiceStyle(selected: selected))
-        .accessibilityLabel("\(speed.label)，预计 \(estimate.lowerMinutes) 至 \(estimate.upperMinutes) 分钟")
-        .accessibilityValue(selected ? "已选择" : "未选择")
+        .accessibilityLabel(strings.format("duration.a11y", strings.text("speed.\(speed.rawValue)"), estimate.lowerMinutes, estimate.upperMinutes))
+        .accessibilityIdentifier("speed.\(speed.rawValue)")
+        .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -161,13 +180,15 @@ struct ContentView: View {
             if !session.hasEnded {
                 HStack(spacing: 14) {
                     Button { session.togglePause() } label: {
-                        PixelLabel(text: session.isPaused ? "继续" : "暂停", size: 24)
+                        PixelControlLabel(text: strings.text(session.isPaused ? "action.resume" : "action.pause"), size: 24)
                     }
-                    .accessibilityLabel(session.isPaused ? "继续游戏与计时" : "暂停游戏与计时")
+                    .accessibilityLabel(strings.text(session.isPaused ? "a11y.resume" : "a11y.pause"))
+                    .accessibilityIdentifier("game.pause")
                     Button { session.requestRestart() } label: {
-                        PixelLabel(text: "重开", size: 24)
+                        PixelControlLabel(text: strings.text("action.restart"), size: 24)
                     }
-                    .accessibilityLabel("重开，需确认后返回开局选择")
+                    .accessibilityLabel(strings.text("a11y.restart"))
+                    .accessibilityIdentifier("game.restart")
                 }
                 .buttonStyle(PixelButtonStyle())
                 .padding(.bottom, 3)
@@ -178,18 +199,18 @@ struct ContentView: View {
     private var scoreLine: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 5) {
-                PixelLabel(text: "SCORE", size: 12)
+                PixelLabel(text: strings.text("game.score"), size: 12)
                 PixelText(text: String(format: "%04d", session.engine.foodsEaten), pixel: 2)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("已吃 \(session.engine.foodsEaten) 个食物")
+            .accessibilityLabel(strings.format("a11y.score", session.engine.foodsEaten))
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
-                PixelLabel(text: "TIME", size: 12)
+                PixelLabel(text: strings.text("game.time"), size: 12)
                 PixelText(text: timeText, pixel: 2)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("本次专注 \(Int(session.elapsedSeconds) / 60) 分 \(Int(session.elapsedSeconds) % 60) 秒")
+            .accessibilityLabel(strings.format("a11y.time", Int(session.elapsedSeconds) / 60, Int(session.elapsedSeconds) % 60))
         }
         .padding(.horizontal, 5)
     }
@@ -207,11 +228,11 @@ struct ContentView: View {
             if session.hasEnded {
                 endCard.padding(18)
             } else if session.isPaused {
-                PixelLabel(text: "已暂停", size: 24)
+                PixelLabel(text: strings.text("game.paused"), size: 24)
                     .padding(20)
                     .background(LCD.paper)
                     .overlay { Rectangle().strokeBorder(LCD.ink, lineWidth: 2) }
-                    .accessibilityLabel("游戏与专注计时已暂停")
+                    .accessibilityLabel(strings.text("a11y.paused"))
             }
         }
         .padding(5)
@@ -220,16 +241,17 @@ struct ContentView: View {
 
     private var endCard: some View {
         VStack(spacing: 17) {
-            PixelText(text: session.engine.phase == .filled ? "CLEAR" : "OVER", pixel: 3)
-            PixelLabel(text: "休息一下", size: 24)
-            PixelLabel(text: "本次专注 \(timeText)\n起来走走，看看远处。", size: 12)
+            PixelControlLabel(text: strings.text(session.engine.phase == .filled ? "game.clear" : "game.over"), size: 24)
+            PixelControlLabel(text: strings.text("rest.title"), size: 24)
+            PixelLabel(text: strings.format("rest.message", timeText), size: 12)
                 .multilineTextAlignment(.center)
             Button { session.requestRestart() } label: {
-                PixelLabel(text: "重开", size: 24)
+                PixelControlLabel(text: strings.text("action.restart"), size: 24)
             }
             .buttonStyle(PixelButtonStyle())
             .frame(maxWidth: 170)
-            .accessibilityLabel("重开，直接返回开局选择，无需确认")
+            .accessibilityLabel(strings.text("a11y.restartFinished"))
+            .accessibilityIdentifier("game.restart")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 25)
@@ -245,20 +267,22 @@ struct ContentView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { }
             VStack(spacing: 20) {
-                PixelLabel(text: "确认重开？", size: 24)
+                PixelControlLabel(text: strings.text("restart.title"), size: 24)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityFocused($restartTitleFocused)
-                PixelLabel(text: "将结束本局，返回开局选择。\n本次已用 \(timeText)", size: 12)
+                PixelLabel(text: strings.format("restart.message", timeText), size: 12)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 12) {
                     Button { session.cancelRestart() } label: {
-                        PixelLabel(text: "取消", size: 18)
+                        PixelControlLabel(text: strings.text("action.cancel"), size: 18)
                     }
                     .buttonStyle(PixelButtonStyle())
+                    .accessibilityIdentifier("restart.cancel")
                     Button { session.confirmRestart() } label: {
-                        PixelLabel(text: "确认重开", size: 18)
+                        PixelControlLabel(text: strings.text("action.confirmRestart"), size: 18)
                     }
                     .buttonStyle(PixelButtonStyle(emphasized: true))
+                    .accessibilityIdentifier("restart.confirm")
                 }
             }
             .padding(22)
@@ -327,6 +351,8 @@ private struct RetroBoard: View {
     let appearance: SnakeAppearance
     let reduceMotion: Bool
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.locale) private var locale
+    private var strings: SnakeStrings { SnakeStrings(locale: locale) }
 
     var body: some View {
         Canvas { context, size in
@@ -354,8 +380,8 @@ private struct RetroBoard: View {
         .background(LCD.paper)
         .overlay { PixelWalls(configuration: engine.configuration) }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("自动贪吃蛇，\(boundaryDescription)")
-        .accessibilityValue("蛇身 \(engine.snake.count) 格，可用 \(engine.configuration.cellCount) 格")
+        .accessibilityLabel(strings.format("a11y.board", boundaryDescription))
+        .accessibilityValue(strings.format("a11y.occupancy", engine.snake.count, engine.configuration.cellCount))
     }
 
     private var boundaryDescription: String {
@@ -369,11 +395,13 @@ private struct RetroBoard: View {
                 && configuration.contains(GridCell(x: column, y: configuration.rows - 1))
         }
         let edges: String
-        if horizontalPassage && verticalPassage { edges = "左右与上下有穿越通道" }
-        else if horizontalPassage { edges = "左右有穿越通道，上下有墙" }
-        else if verticalPassage { edges = "上下有穿越通道，左右有墙" }
-        else { edges = "四面有墙" }
-        return configuration.walls.isEmpty ? "\(edges)棋盘" : "\(edges)棋盘，含 \(configuration.walls.count) 格墙壁"
+        if horizontalPassage && verticalPassage { edges = strings.text("a11y.boundary.both") }
+        else if horizontalPassage { edges = strings.text("a11y.boundary.horizontal") }
+        else if verticalPassage { edges = strings.text("a11y.boundary.vertical") }
+        else { edges = strings.text("a11y.boundary.closed") }
+        return configuration.walls.isEmpty
+            ? strings.format("a11y.boundary.board", edges)
+            : strings.format("a11y.boundary.walls", edges, configuration.walls.count)
     }
 }
 

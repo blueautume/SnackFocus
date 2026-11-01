@@ -1,0 +1,67 @@
+/* 开局与操作 */
+"app.title" = "SNAKE";
+"setup.map" = "选择地图";
+"setup.style" = "选择蛇形态";
+"setup.speed" = "选择速度";
+"setup.start" = "开始游戏";
+"action.pause" = "暂停";
+"action.resume" = "继续";
+"action.restart" = "重开";
+"action.cancel" = "取消";
+"action.confirmRestart" = "确认重开";
+
+/* 游戏与弹层 */
+"game.score" = "得分";
+"game.time" = "计时";
+"game.paused" = "已暂停";
+"game.clear" = "通关";
+"game.over" = "结束";
+"rest.title" = "休息一下";
+"rest.message" = "本次专注 %@\n起来走走，看看远处。";
+"restart.title" = "确认重开？";
+"restart.message" = "将结束本局，返回开局选择。\n本次已用 %@";
+"duration.range" = "%d–%d分";
+"duration.a11y" = "%@，预计 %d 至 %d 分钟";
+
+/* 地图名称与结构说明 */
+"map.meadow.title" = "无边空场";
+"map.meadow.subtitle" = "16 × 24 · 无墙环绕";
+"map.courtyard.title" = "外圈围墙";
+"map.courtyard.subtitle" = "16 × 24 · 单格外圈墙";
+"map.doubleBars.title" = "双横杠墙";
+"map.doubleBars.subtitle" = "16 × 24 · 双横墙与角墙";
+"map.staggered.title" = "交错隔墙";
+"map.staggered.subtitle" = "16 × 24 · 交错横向隔墙";
+"map.twinRails.title" = "双竖围栏";
+"map.twinRails.subtitle" = "16 × 24 · 双竖栏与侧边通道";
+"map.channels.title" = "多层通道";
+"map.channels.subtitle" = "16 × 24 · 多层相连通道";
+"appearance.classic" = "经典";
+"appearance.modern" = "现代";
+"speed.zen" = "禅意";
+"speed.calm" = "舒缓";
+"speed.steady" = "适中";
+"speed.flow" = "激进";
+
+/* VoiceOver 标签与选择状态 */
+"a11y.app" = "自动贪吃蛇";
+"a11y.start" = "按所选地图、蛇形态和速度开始游戏";
+"a11y.selected" = "已选择";
+"a11y.notSelected" = "未选择";
+"a11y.appearance" = "蛇形态，%@";
+"a11y.map" = "地图，%@，%@";
+"a11y.pause" = "暂停游戏与计时";
+"a11y.resume" = "继续游戏与计时";
+"a11y.restart" = "重开，需确认后返回开局选择";
+"a11y.restartFinished" = "重开，直接返回开局选择，无需确认";
+"a11y.score" = "已吃 %d 个食物";
+"a11y.time" = "本次专注 %d 分 %d 秒";
+"a11y.paused" = "游戏与专注计时已暂停";
+"a11y.board" = "自动贪吃蛇，%@";
+"a11y.occupancy" = "蛇身 %d 格，可用 %d 格";
+"a11y.boundary.both" = "左右与上下有穿越通道";
+"a11y.boundary.horizontal" = "左右有穿越通道，上下有墙";
+"a11y.boundary.vertical" = "上下有穿越通道，左右有墙";
+"a11y.boundary.closed" = "四面有墙";
+"a11y.boundary.board" = "%@棋盘";
+"a11y.boundary.walls" = "%@棋盘，含 %d 格墙壁";
