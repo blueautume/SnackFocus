@@ -615,12 +615,18 @@ struct DesignLabView: View {
     }
 
     private var selectedCombination: some View {
-        HStack(spacing: 14) {
-            Image(systemName: form.symbol).font(.system(size: 25)).foregroundStyle(palette.accent)
-                .frame(width: 56, height: 56).background(palette.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 17))
+        HStack(spacing: 12) {
+            LabMaterialPreview(form: form, theme: theme, animated: true)
+                .frame(width: 112, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 13))
+                .overlay(RoundedRectangle(cornerRadius: 13).stroke(palette.line, lineWidth: 1))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(labText("当前组合实景预览，", "Current pairing preview, ") + theme.title + ", " + form.title)
+                .accessibilityAddTraits(.isImage)
+                .accessibilityIdentifier("lab.preview.current")
             VStack(alignment: .leading, spacing: 5) {
                 Text(labText("当前组合", "CURRENT PAIRING")).font(.system(size: 9, weight: .semibold)).tracking(1).foregroundStyle(palette.secondary)
-                Text("\(theme.title) + \(form.title)").font(.system(size: 16, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                Text("\(theme.title) + \(form.title)").font(.system(size: 15, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                 Text("\(theme.code) / \(form.code) · \(form.is3D ? "3D" : "2D")").font(.system(size: 11, design: .monospaced)).foregroundStyle(palette.secondary)
             }
             Spacer(minLength: 2)
@@ -638,16 +644,8 @@ struct DesignLabView: View {
                 themeRaw = option.rawValue
             } label: {
                 HStack(spacing: 12) {
-                    VStack(spacing: 4) {
-                        Text(option.code).font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        HStack(spacing: 3) {
-                            ForEach(0..<3) { index in
-                                Circle().fill([option.palette.background, option.palette.accent, option.palette.accent2][index])
-                                    .frame(width: 10, height: 10)
-                                    .overlay(Circle().stroke(option.palette.ink.opacity(0.15), lineWidth: 0.5))
-                            }
-                        }
-                    }.frame(width: 48)
+                    Text(option.code).font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(palette.secondary).frame(width: 36)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(option.title).font(.system(size: 16, weight: .semibold))
                         Text(option.detail).font(.system(size: 11)).foregroundStyle(palette.secondary).fixedSize(horizontal: false, vertical: true)
@@ -664,6 +662,21 @@ struct DesignLabView: View {
             .accessibilityAddTraits(selected ? .isSelected : [])
             Button {
                 themeRaw = option.rawValue
+            } label: {
+                selectionPreview(form: form, theme: option)
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityRemoveTraits(.isImage)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(option.title + labText("，实际配色与蛇形预览，", ", color and material preview, ") + form.title)
+            .accessibilityHint(labText("选用这套界面与配色，保留当前蛇形", "Use this layout and palette while keeping your snake"))
+            .accessibilityIdentifier("lab.preview.theme.\(option.rawValue)")
+            .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            paletteSwatches(option)
+            Button {
+                themeRaw = option.rawValue
                 formRaw = option.recommendedForm.rawValue
             } label: {
                 Label(labText("推荐搭配", "Recommended") + " · " + option.recommendedForm.title, systemImage: "wand.and.stars")
@@ -677,36 +690,77 @@ struct DesignLabView: View {
 
     private func formOption(_ option: LabSnakeForm) -> some View {
         let selected = form == option
-        return Button {
-            formRaw = option.rawValue
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: option.symbol).font(.system(size: 21)).foregroundStyle(palette.accent)
-                    .frame(width: 46, height: 48).background(palette.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 7) {
+        return VStack(alignment: .leading, spacing: 12) {
+            Button {
+                formRaw = option.rawValue
+            } label: {
+                HStack(spacing: 10) {
+                    Text(option.code).font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(palette.secondary).frame(width: 36)
+                    HStack(spacing: 8) {
                         Text(option.title).font(.system(size: 15, weight: .semibold))
                         Text(option.is3D ? "3D" : "2D").font(.system(size: 9, weight: .bold, design: .monospaced))
                             .padding(.horizontal, 5).padding(.vertical, 3)
                             .background(palette.accent.opacity(0.15), in: Capsule())
                     }
-                    Text(option.detail).font(.system(size: 11)).foregroundStyle(palette.secondary).fixedSize(horizontal: false, vertical: true)
-                    Text(option.code).font(.system(size: 9, design: .monospaced)).foregroundStyle(palette.secondary)
-                }
-                Spacer(minLength: 0)
-                if selected {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(palette.accent)
-                        .accessibilityHidden(true)
-                }
-            }.padding(13).frame(maxWidth: .infinity, alignment: .leading)
-                .background(selected ? palette.accent.opacity(0.09) : palette.surface, in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(selected ? palette.accent.opacity(0.45) : palette.line, lineWidth: 1))
+                    Spacer(minLength: 0)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(palette.accent)
+                            .accessibilityHidden(true)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("lab.form.\(option.rawValue)")
+            .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            Button {
+                formRaw = option.rawValue
+            } label: {
+                selectionPreview(form: option, theme: theme)
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityRemoveTraits(.isImage)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(option.title + labText("，实际蛇形材质预览，", ", material preview, ") + theme.title)
+            .accessibilityHint(labText("选用这条蛇，保留当前界面与配色", "Use this snake while keeping your layout and palette"))
+            .accessibilityIdentifier("lab.preview.form.\(option.rawValue)")
+            .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            Text(option.detail).font(.system(size: 11)).foregroundStyle(palette.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("lab.form.\(option.rawValue)")
-        .accessibilityValue(strings.text(selected ? "a11y.selected" : "a11y.notSelected"))
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .padding(15).frame(maxWidth: .infinity, alignment: .leading)
+        .background(selected ? palette.accent.opacity(0.09) : palette.surface, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? palette.accent.opacity(0.45) : palette.line, lineWidth: 1))
+    }
+
+    private func selectionPreview(form: LabSnakeForm, theme: LabTheme) -> some View {
+        LabMaterialPreview(form: form, theme: theme)
+            .aspectRatio(2, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: 13).stroke(theme.palette.line, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 13))
+    }
+
+    private func paletteSwatches(_ option: LabTheme) -> some View {
+        let colors = [option.palette.background, option.palette.surface, option.palette.accent, option.palette.accent2, option.palette.ink]
+        let labels = [labText("底色", "Base"), labText("面板", "Panel"), labText("主色", "Primary"), labText("副色", "Accent"), labText("文字", "Text")]
+        return HStack(spacing: 6) {
+            ForEach(0..<5) { index in
+                VStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(colors[index])
+                        .frame(height: 24)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.ink.opacity(0.15), lineWidth: 0.5))
+                    Text(labels[index]).font(.system(size: 9, weight: .medium)).foregroundStyle(palette.secondary)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }.frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(option.title + labText("，五色配色板", ", five-color palette"))
     }
 
     @ViewBuilder private var favoritesSection: some View {
@@ -727,9 +781,16 @@ struct DesignLabView: View {
                                 themeRaw = savedTheme.rawValue
                                 formRaw = savedForm.rawValue
                             } label: {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text("\(savedTheme.title) + \(savedForm.title)").font(.system(size: 14, weight: .medium))
-                                    Text("\(savedTheme.code) / \(savedForm.code)").font(.system(size: 10, design: .monospaced)).foregroundStyle(palette.secondary)
+                                HStack(spacing: 10) {
+                                    LabMaterialPreview(form: savedForm, theme: savedTheme)
+                                        .frame(width: 92, height: 46)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .accessibilityHidden(true)
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text("\(savedTheme.title) + \(savedForm.title)").font(.system(size: 14, weight: .medium))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text("\(savedTheme.code) / \(savedForm.code)").font(.system(size: 10, design: .monospaced)).foregroundStyle(palette.secondary)
+                                    }
                                 }.frame(maxWidth: .infinity, alignment: .leading)
                             }.buttonStyle(.plain)
                             Button { removeFavorite(key) } label: {

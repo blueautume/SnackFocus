@@ -5,7 +5,7 @@
 ## 怎么选
 
 1. 用 Xcode 打开 `SnakeFocus.xcworkspace`，运行 `SnakeFocus` scheme。
-2. 点右上角「方案」：在「界面 · 10」选择布局，在「蛇形 · 10」独立选择材质，共 100 种组合。
+2. 点右上角「方案」：在「界面 · 10」选择布局，在「蛇形 · 10」独立选择材质，共 100 种组合。每张候选卡都展示实际蛇形材质；界面卡同时显示底色、面板、主色、副色与文字五块色板。点预览图即可选用。
 3. 「推荐搭配」会同时选择该界面推荐的蛇形；单独点击界面或蛇形时，另一项保持当前选择。
 4. 点击书签收藏当前组合，在「收藏」中快速切换对比。选择与收藏保存在当前设备。
 5. 设置按钮提供六张地图、四档速度和原有时长估算。「开始专注」启动原有自动贪吃蛇；暂停、重开、完成提示沿用同一会话逻辑。
@@ -13,14 +13,26 @@
 
 开局时的较大 S 形是独立材质试样，便于看清材质。开始后展示实际游戏路径；试样不会写入或改变引擎。
 
+当前组合顶部提供运动预览；列表与收藏使用实际渲染器生成并缓存的静态缩略图，避免同时运行多组三维场景。缩略图在蛇形或界面变化时更新。
+
+[界面与配色选择预览](Previews/DesignLab/Selectors/theme-previews.png) · [蛇形材质选择预览](Previews/DesignLab/Selectors/snake-previews.png)
+
+## 蛇身流动与边界修复
+
+实验皮肤使用随身体前进的波形及全局蛇身材质坐标。鳞片、飞白、折痕、亮芯和三维标记都以固定蛇身位置采样，移动速度来自实际格点插值；身体穿越边界后不重新开始纹理相位。原版经典蛇的固定世界波形继续保留在原版对照中。
+
+二维渲染对墙格先裁剪再画墙，三维渲染统一使用棋盘坐标的墙体透明遮罩。三维缓存比较完整蛇身、上一帧、棋盘和进度，避免只根据头部位置复用旧的身体片段。
+
+[实际金属蛇运动录像](Previews/DesignLab/Motion/chrome-walls-flow.mp4) · [棋盘动图](Previews/DesignLab/Motion/chrome-walls-flow.gif) · [非对称墙体检查](Previews/DesignLab/QA/wall-mask-staggered.png)
+
 ## 10 种蛇形
 
 ![蛇形总览](Previews/DesignLab/snake-forms-overview.png)
 
 | 编号 | 蛇形 | 实现与可见效果 | 实际渲染大图 |
 | --- | --- | --- | --- |
-| S01 | 像素生物 | 2D 像素栅格、原有鳞纹、波动与收尖尾部 | [查看](Previews/DesignLab/Snakes/S01-pixel.png) |
-| S02 | 流动丝带 | 2D 连续变宽轮廓、绸缎高光、沿身渐变 | [查看](Previews/DesignLab/Snakes/S02-ribbon.png) |
+| S01 | 像素生物 | 2D 像素栅格、随身亮色鳞纹、波动与收尖尾部 | [查看](Previews/DesignLab/Snakes/S01-pixel.png) |
+| S02 | 流动丝带 | 2D 连续变宽轮廓、双色绸缎与随身 V 形高光 | [查看](Previews/DesignLab/Snakes/S02-ribbon.png) |
 | S03 | 水墨游龙 | 2D 干笔飞白、稳定颗粒、纸纤维与墨色层次 | [查看](Previews/DesignLab/Snakes/S03-ink.png) |
 | S04 | 霓虹光管 | 2D 亮芯、双色管壁与模糊光晕，深色界面效果更明显 | [查看](Previews/DesignLab/Snakes/S04-neon.png) |
 | S05 | 折纸鳞片 | 2D 多边形折面、纸鳞与明暗交替 | [查看](Previews/DesignLab/Snakes/S05-origami.png) |
@@ -64,8 +76,8 @@
 
 - 模拟器：iPhone SE 第三代小屏布局检查，以及 iPhone 17 Pro 完整参考图。
 - 五种三维材质按快照更新，复用灯光、材质和网格索引，动态管身约 800 环采样上限。暂停与后台停止 Timeline 连续更新，没有额外的 SceneKit 游戏计时器。
-- `Scripts/check-design-lab.sh` 检查试样拓扑、跨边界分段、有限坐标、尾部半径，以及六张原版地图上的 559 个实际状态；原有视觉、估时和本地化检查继续适用。
-- 独立的 `SnakeFocus-LabChecks` scheme 提供原生 XCTest UI 操作检查：主题与蛇形独立切换、开始 / 暂停 / 恢复、重开确认与取消、设置页关闭后重开，以及收藏恢复。实际运行 4 条测试，全部通过，0 失败。普通 `SnakeFocus` scheme 保持为应用运行入口。
+- `Scripts/check-design-lab.sh` 检查材质锚点在水平、垂直边界两侧与蛇头等速移动，跨逻辑步相位连续，暂停快照与减少动态效果保持稳定，以及六张原版地图上的 559 个实际状态；原有视觉、估时和本地化检查继续适用。
+- 独立的 `SnakeFocus-LabChecks` scheme 提供原生 XCTest UI 操作检查：主题与蛇形独立切换、实际预览卡点击选用、开始 / 暂停 / 恢复、重开确认与取消、设置页关闭后重开，以及收藏恢复。实际运行 5 条测试，全部通过，0 失败。普通 `SnakeFocus` scheme 保持为应用运行入口。
 - 三维运行效果已在模拟器检查；尚未对不同型号真机的帧率、发热和电量进行量化测量。
 
 截图脚本使用已经构建的 Debug 应用：

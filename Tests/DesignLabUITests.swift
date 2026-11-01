@@ -36,6 +36,41 @@ final class DesignLabUITests: XCTestCase {
         assertPairing("T03 / S09")
     }
 
+    func testPreviewCardsApplyLayoutAndMaterialIndependently() {
+        openSchemes()
+        XCTAssertTrue(app.images["lab.preview.current"].waitForExistence(timeout: 5))
+        let atelier = app.buttons["lab.preview.theme.atelier"]
+        tapAfterScrolling(atelier)
+        XCTAssertEqual(atelier.value as? String, "Selected")
+        attachScreenshot(named: "Style lab — layout preview cards")
+        closeSchemes()
+        assertPairing("T01 / S06")
+
+        openSchemes()
+        let arcade = app.buttons["lab.preview.theme.arcade"]
+        tapAfterScrolling(arcade)
+        XCTAssertEqual(arcade.value as? String, "Selected")
+        closeSchemes()
+        assertPairing("T03 / S06")
+
+        openSchemes()
+        tapAfterScrolling(app.buttons["Snakes · 10"], direction: .down)
+        let ribbon = app.buttons["lab.preview.form.ribbon"]
+        tapAfterScrolling(ribbon)
+        XCTAssertEqual(ribbon.value as? String, "Selected")
+        attachScreenshot(named: "Style lab — snake material preview cards")
+        closeSchemes()
+        assertPairing("T03 / S02")
+
+        openSchemes()
+        tapAfterScrolling(app.buttons["Snakes · 10"], direction: .down)
+        let pearl = app.buttons["lab.preview.form.pearl"]
+        tapAfterScrolling(pearl)
+        XCTAssertEqual(pearl.value as? String, "Selected")
+        closeSchemes()
+        assertPairing("T03 / S09")
+    }
+
     func testFocusPauseResumeAndRestartConfirmation() {
         let primary = app.buttons["lab.primary"]
         assertLabel(primary, equals: "Start focus")
@@ -132,6 +167,13 @@ final class DesignLabUITests: XCTestCase {
                       "Expected current pairing \(value)", file: file, line: line)
     }
 
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func assertLabel(_ element: XCUIElement, equals value: String,
                              file: StaticString = #filePath, line: UInt = #line) {
         let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", value), object: element)
@@ -153,6 +195,10 @@ final class DesignLabUITests: XCTestCase {
             if direction == .up { scrollView.swipeUp() }
             else { scrollView.swipeDown() }
         }
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "Unreachable element accessibility hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
         XCTFail("Could not reach \(element)", file: file, line: line)
     }
 }

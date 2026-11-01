@@ -13,6 +13,7 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
             require(specimen.configuration.areNeighbors(a, b), "Specimen must be a continuous snake")
         }
         verify(specimen)
+        checkMaterialAdvection()
 
         // Both boundaries are crossed in the underlying cell sequence. The
         // visible strips must never form a diagonal across the board.
@@ -45,7 +46,61 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
             }
             require(engine.phase == .filled, "Production sample must reach its normal completed state")
         }
-        print("PASS design lab: specimen topology, wrap separation, finite tapered geometry and \(snapshots) real game snapshots across all six maps")
+        print("PASS design lab: material advection at head speed on both sides of each wrap, phase continuity, frozen/reduced motion, specimen topology and \(snapshots) real snapshots across six maps")
+    }
+
+    private static func checkMaterialAdvection() {
+        for vertical in [false, true] {
+            // A straight body crosses a seam; some material markers are before
+            // it and others are on the far side. Horizontal uses a walled map.
+            let configuration = vertical ? SnakeConfiguration.firstMap : SnakeMap.doubleBars.configuration
+            let extent = vertical ? configuration.rows : configuration.columns
+            func cells(_ head: Int) -> [GridCell] {
+                (0..<12).map { index in
+                    let coordinate = ((head - index) % extent + extent) % extent
+                    return vertical ? GridCell(x: 8, y: coordinate) : GridCell(x: coordinate, y: 8)
+                }
+            }
+            func input(_ progress: Double, head: Int = 3, time: Double = 0, reduced: Bool = false) -> LabBoardInput {
+                LabBoardInput(configuration: configuration, snake: cells(head), previousSnake: cells(head - 1),
+                    food: nil, progress: progress, time: time, completedMoves: head + 40, reduceMotion: reduced)
+            }
+            func marks(_ frame: LabBoardInput) -> [LabMaterialMark] {
+                LabRenderGeometry.materialMarks(input: frame, spacing: 0.8).filter {
+                    $0.center.x >= 0 && $0.center.x < CGFloat(configuration.columns)
+                    && $0.center.y >= 0 && $0.center.y < CGFloat(configuration.rows)
+                }
+            }
+            let a = input(0.2), b = input(0.6)
+            let before = marks(a), after = marks(b)
+            require(before.count > 8 && before.count == after.count, "Missing material on a wrapped body")
+            for (old, new) in zip(before, after) {
+                require(abs(old.position - new.position) < 1e-8, "Material identity changed at a wrap")
+                let raw = vertical ? new.center.y - old.center.y : new.center.x - old.center.x
+                let delta = raw - (raw / CGFloat(extent)).rounded() * CGFloat(extent)
+                require(abs(delta - 0.4) < 1e-6, "A material marker stopped or moved at a different speed from the head")
+                let normalDelta = vertical ? new.center.x - old.center.x : new.center.y - old.center.y
+                require(abs(normalDelta) < 1e-6, "Middle wave remains pinned to the world")
+            }
+            let headA = LabRenderGeometry.head(input: a), headB = LabRenderGeometry.head(input: b)
+            require(abs((vertical ? headB.y-headA.y : headB.x-headA.x)-0.4) < 1e-6, "Invalid head speed fixture")
+
+            // End of one tick equals the beginning of the next, without a
+            // texture reset caused by completedMoves or a new seam split.
+            for (old, new) in zip(marks(input(1)), marks(input(0, head: 4))) {
+                require(hypot(old.center.x-new.center.x, old.center.y-new.center.y) < 1e-6,
+                        "Material jumps at a logical move boundary")
+            }
+            let frozen = marks(input(0.4, time: 5)), later = marks(input(0.4, time: 500))
+            require(zip(frozen, later).allSatisfy { $0.center.x == $1.center.x && $0.center.y == $1.center.y }, "Material uses a second wall clock")
+            let reducedA = marks(input(0.1, reduced: true)), reducedB = marks(input(0.8, reduced: true))
+            require(zip(reducedA, reducedB).allSatisfy { $0.center.x == $1.center.x && $0.center.y == $1.center.y }, "Reduced Motion still interpolates")
+        }
+        require(LabRenderGeometry.materialMarks(input: .specimen, spacing: 0).isEmpty, "Invalid spacing must be rejected")
+        require(LabRenderGeometry.materialMarks(input: .specimen, spacing: .infinity).isEmpty, "Invalid spacing must be rejected")
+        for distance in [0.0, 0.3, 23.9, 24, 24.1, 1000.2] {
+            verify(.movingThumbnail(distance: distance))
+        }
     }
 
     private static func verify(_ input: LabBoardInput) {

@@ -49,17 +49,19 @@ struct LabSnake3DView: UIViewRepresentable {
         private let gridNode = SCNNode()
         private let wallRoot = SCNNode()
         private let foodNode = SCNNode()
+        private let markingNode = SCNNode()
         private var bodyNodes: [SCNNode] = []
         private var contactNodes: [SCNNode] = []
         private var glassRimNodes: [SCNNode] = []
         private var headNodes: [SCNNode] = []
         private var configuration: SnakeConfiguration?
         private var materialKey = ""
-        private var frameKey = ""
+        private var frameKey: SnapshotKey?
         private var bodyMaterials: [SCNMaterial] = []
         private var eyeMaterials: [SCNMaterial] = []
         private let contactMaterial = SCNMaterial()
         private let glassRimMaterial = SCNMaterial()
+        private var markingMaterial = SCNMaterial()
         private var elementCache: [String: [SCNGeometryElement]] = [:]
         private let studio: UIImage
 
@@ -70,6 +72,8 @@ struct LabSnake3DView: UIViewRepresentable {
             scene.rootNode.addChildNode(gridNode)
             scene.rootNode.addChildNode(wallRoot)
             scene.rootNode.addChildNode(foodNode)
+            scene.rootNode.addChildNode(markingNode)
+            markingNode.castsShadow = false
             floorNode.renderingOrder = -3
             gridNode.renderingOrder = -2
             cameraNode.camera = SCNCamera()
@@ -128,11 +132,14 @@ struct LabSnake3DView: UIViewRepresentable {
             if configuration != input.configuration || changedMaterial {
                 configuration = input.configuration
                 configureBoard(input.configuration, palette: palette)
-                frameKey = ""
+                frameKey = nil
             }
             // A stopped TimelineView can still be evaluated by SwiftUI. Avoid
             // rebuilding a mesh when the supplied render snapshot is identical.
-            let nextFrameKey = "\(input.completedMoves)-\(input.snake.count)-\(input.progress)-\(Int(input.time * 24))-\(input.snake.first?.x ?? -1)-\(input.snake.first?.y ?? -1)-\(input.food?.x ?? -1)-\(input.food?.y ?? -1)-\(nextMaterialKey)"
+            let nextFrameKey = SnapshotKey(configuration: input.configuration, snake: input.snake,
+                previousSnake: input.previousSnake, food: input.food, progress: input.progress,
+                time: input.time, completedMoves: input.completedMoves, reduceMotion: input.reduceMotion,
+                form: form, paletteKey: nextMaterialKey)
             guard frameKey != nextFrameKey else { return }
             frameKey = nextFrameKey
             SCNTransaction.begin()
@@ -216,6 +223,31 @@ struct LabSnake3DView: UIViewRepresentable {
             glassRimMaterial.transparency = 0.62
             glassRimMaterial.isDoubleSided = true
             glassRimMaterial.writesToDepthBuffer = false
+            markingMaterial = base.copy() as! SCNMaterial
+            markingMaterial.isDoubleSided = true
+            switch form {
+            case .clay:
+                markingMaterial.diffuse.contents = Self.mix(accent, .white, 0.42)
+                markingMaterial.roughness.contents = 0.92
+            case .chrome:
+                markingMaterial.diffuse.contents = Self.mix(accent, .black, 0.65)
+                markingMaterial.roughness.contents = 0.36
+                markingMaterial.metalness.contents = 0.85
+            case .glass:
+                markingMaterial.lightingModel = .constant
+                markingMaterial.diffuse.contents = UIColor.white
+                markingMaterial.transparency = 0.72
+                markingMaterial.reflective.intensity = 0
+            case .pearl:
+                markingMaterial.diffuse.contents = Self.mix(palette.uiAccent2, .white, 0.25)
+                markingMaterial.roughness.contents = 0.22
+                markingMaterial.metalness.contents = 0.08
+            case .hologram:
+                markingMaterial.diffuse.contents = palette.uiAccent2
+                markingMaterial.emission.contents = palette.uiAccent2
+                markingMaterial.emission.intensity = 0.8
+            default: break
+            }
         }
 
         private func configureBoard(_ configuration: SnakeConfiguration, palette: LabPalette) {
@@ -272,6 +304,35 @@ struct LabSnake3DView: UIViewRepresentable {
             foodMaterial.metalness.contents = 0.15
             food.materials = [foodMaterial]
             foodNode.geometry = food
+            configureOccupancyMask(configuration)
+        }
+
+        private func configureOccupancyMask(_ configuration: SnakeConfiguration) {
+            // Alpha-cut the horizontal wall footprint using an ordinary
+            // material texture. Every dynamic mesh supplies the same board UV
+            // mapping, including clipped heads and transparent glass glints.
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = false
+            let size = CGSize(width: configuration.columns, height: configuration.rows)
+            let mask = UIGraphicsImageRenderer(size: size, format: format).image { context in
+                UIColor.white.setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+                for cell in configuration.walls {
+                    context.cgContext.clear(CGRect(x: cell.x, y: cell.y, width: 1, height: 1))
+                }
+            }
+            for material in bodyMaterials + eyeMaterials + [contactMaterial, glassRimMaterial, markingMaterial] {
+                material.transparent.contents = mask
+                material.transparent.minificationFilter = .nearest
+                material.transparent.magnificationFilter = .nearest
+                material.transparent.mipFilter = .none
+                material.transparent.wrapS = .clamp
+                material.transparent.wrapT = .clamp
+                // dualLayer also uses texture alpha for the glass shell.
+                if material.transparencyMode != .dualLayer { material.transparencyMode = .aOne }
+                material.readsFromDepthBuffer = true
+            }
         }
 
         private func updateSnake(input: LabBoardInput, form: LabSnakeForm) {
@@ -306,7 +367,6 @@ struct LabSnake3DView: UIViewRepresentable {
                 contactNodes.append(contact)
                 let rim = SCNNode()
                 rim.castsShadow = false
-                rim.renderingOrder = 3
                 scene.rootNode.addChildNode(rim)
                 glassRimNodes.append(rim)
             }
@@ -347,18 +407,24 @@ struct LabSnake3DView: UIViewRepresentable {
                         mesh.vertex(point, normal: normal)
                     }
                 }
-                let topologyKey = "\(samples.count)-\(sides)-\(bodyMaterials.count)"
+                // Group phase belongs to the original head-relative body
+                // coordinate, never to a ring index reset at an edge split.
+                let materialBands = samples.dropLast().map { sample in
+                    Int(floor(sample.position / 1.2)) % bodyMaterials.count
+                }
+                let bandKey = bodyMaterials.count > 1 ? materialBands.map(String.init).joined() : ""
+                let topologyKey = "\(samples.count)-\(sides)-\(bodyMaterials.count)-\(bandKey)"
                 if elementCache[topologyKey] == nil {
                     var groups = Array(repeating: [UInt32](), count: bodyMaterials.count)
                     for ring in 0..<(samples.count - 1) { for side in 0..<sides {
                         let a = UInt32(ring * sides + side), b = UInt32(ring * sides + (side + 1) % sides)
                         let c = a + UInt32(sides), d = b + UInt32(sides)
-                        let group = (side + ring / 3) % bodyMaterials.count
+                        let group = (side + materialBands[ring]) % bodyMaterials.count
                         groups[group].append(contentsOf: [a, c, b, b, c, d])
                     } }
                     elementCache[topologyKey] = groups.map { SCNGeometryElement(indices: $0, primitiveType: .triangles) }
                 }
-                node.geometry = mesh.geometry(materials: bodyMaterials, elements: elementCache[topologyKey])
+                node.geometry = mesh.geometry(materials: bodyMaterials, elements: elementCache[topologyKey], boardBounds: bounds)
                 node.castsShadow = form != .glass
                 // A transparent projection of this same mesh gives a stable
                 // contact shadow even on an unlit palette-matched board.
@@ -374,6 +440,38 @@ struct LabSnake3DView: UIViewRepresentable {
             // Keep bounded topology storage even across maps and snake lengths.
             if elementCache.count > 48 { elementCache.removeAll(keepingCapacity: true) }
             updateHead(input: input, form: form, bounds: bounds)
+            updateMarkings(input: input, form: form, bounds: bounds)
+        }
+
+        private func updateMarkings(input: LabBoardInput, form: LabSnakeForm, bounds: SIMD2<Float>) {
+            // Marks are sampled at fixed global distances behind the moving
+            // head before wrapping. Their world positions therefore advect at
+            // the actual snake speed and freeze with a paused snapshot.
+            let spacing = max(form == .pearl ? 0.72 : 1.15, Double(input.snake.count) / 220)
+            let marks = LabRenderGeometry.materialMarks(input: input, spacing: spacing)
+            var mesh = Mesh()
+            for mark in marks where mark.position > 0.9 && mark.radius > 0.065 {
+                var radius = max(0.025, Float(mark.radius))
+                if form == .pearl {
+                    radius *= 0.45 + 0.62 * pow(abs(cos(Float(mark.position) * .pi / 0.72)), 0.65)
+                }
+                let top = radius * (form == .clay ? 1.70 : 1.86) + 0.081
+                let center = SIMD3<Float>(Float(mark.center.x) - bounds.x, top, Float(mark.center.y) - bounds.y)
+                let heading = atan2(Float(mark.tangent.x), Float(mark.tangent.y))
+                let shape: SIMD3<Float>
+                switch form {
+                case .clay: shape = SIMD3(radius * 0.48, radius * 0.055, radius * 0.29)
+                case .chrome: shape = SIMD3(radius * 0.67, radius * 0.04, radius * 0.16)
+                case .glass: shape = SIMD3(radius * 0.16, radius * 0.045, radius * 0.62)
+                case .pearl: shape = SIMD3(radius * 0.23, radius * 0.055, radius * 0.23)
+                case .hologram: shape = SIMD3(radius * 0.48, radius * 0.18, radius * 0.32)
+                default: shape = SIMD3(repeating: radius * 0.2)
+                }
+                mesh.ellipsoid(center: center, radii: shape, heading: heading, bounds: bounds,
+                    sides: form == .hologram ? 4 : 8, stacks: 4, group: 0)
+            }
+            markingNode.isHidden = mesh.count == 0
+            markingNode.geometry = mesh.count == 0 ? nil : mesh.geometry(materials: [markingMaterial], boardBounds: bounds)
         }
 
         private func glassRims(samples: [LabRenderSample], bounds: SIMD2<Float>) -> SCNGeometry {
@@ -408,7 +506,7 @@ struct LabSnake3DView: UIViewRepresentable {
                     mesh.groups[0].append(contentsOf: [a, c, b, b, c, d])
                 } }
             }
-            return mesh.geometry(materials: [glassRimMaterial])
+            return mesh.geometry(materials: [glassRimMaterial], boardBounds: bounds)
         }
 
         private func updateHead(input: LabBoardInput, form: LabSnakeForm, bounds: SIMD2<Float>) {
@@ -426,7 +524,6 @@ struct LabSnake3DView: UIViewRepresentable {
             } }
             while headNodes.count < centers.count {
                 let node = SCNNode()
-                node.renderingOrder = 2
                 scene.rootNode.addChildNode(node)
                 headNodes.append(node)
             }
@@ -447,7 +544,8 @@ struct LabSnake3DView: UIViewRepresentable {
                     let pupilCenter = eyeCenter + forward * headRadius * 0.075 + SIMD3<Float>(0, headRadius * 0.17, 0)
                     mesh.ellipsoid(center: pupilCenter, radii: SIMD3(repeating: headRadius * 0.135), heading: heading, bounds: bounds, sides: 10, group: 2)
                 }
-                node.geometry = mesh.geometry(materials: [main] + eyeMaterials)
+                node.geometry = mesh.geometry(materials: [main] + eyeMaterials, boardBounds: bounds)
+                node.castsShadow = form != .glass
             }
         }
 
@@ -485,6 +583,21 @@ struct LabSnake3DView: UIViewRepresentable {
     }
 }
 
+/// Value equality includes the complete render input, so a same-length snake
+/// or a different seam split can never reuse an unrelated vertex buffer.
+private struct SnapshotKey: Equatable {
+    let configuration: SnakeConfiguration
+    let snake: [GridCell]
+    let previousSnake: [GridCell]
+    let food: GridCell?
+    let progress: Double
+    let time: Double
+    let completedMoves: Int
+    let reduceMotion: Bool
+    let form: LabSnakeForm
+    let paletteKey: String
+}
+
 /// Interleaved positions/normals keep the dynamic tube to one small vertex
 /// buffer per seam. Geometry elements are cached by the coordinator.
 private struct Mesh {
@@ -507,8 +620,8 @@ private struct Mesh {
     }
 
     mutating func ellipsoid(center: SIMD3<Float>, radii: SIMD3<Float>, heading: Float,
-                            bounds: SIMD2<Float>, sides: Int, group: Int) {
-        let first = UInt32(count), stacks = 8
+                            bounds: SIMD2<Float>, sides: Int, stacks: Int = 8, group: Int) {
+        let first = UInt32(count)
         let c = cos(heading), s = sin(heading)
         for stack in 0...stacks {
             let latitude = Float(stack) / Float(stacks) * .pi
@@ -531,13 +644,24 @@ private struct Mesh {
         } }
     }
 
-    func geometry(materials: [SCNMaterial], elements: [SCNGeometryElement]? = nil) -> SCNGeometry {
+    func geometry(materials: [SCNMaterial], elements: [SCNGeometryElement]? = nil,
+                  boardBounds: SIMD2<Float>? = nil) -> SCNGeometry {
         let data = floats.withUnsafeBytes { Data($0) }
         let vertices = SCNGeometrySource(data: data, semantic: .vertex, vectorCount: count,
             usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 24)
         let normals = SCNGeometrySource(data: data, semantic: .normal, vectorCount: count,
             usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 12, dataStride: 24)
-        let result = SCNGeometry(sources: [vertices, normals], elements: elements ?? groups.map { SCNGeometryElement(indices: $0, primitiveType: .triangles) })
+        var sources = [vertices, normals]
+        if let bounds = boardBounds {
+            // UIImage transparency textures use the same row order as the
+            // logical board here; flipping V would mirror asymmetric walls.
+            let coordinates = stride(from: 0, to: floats.count, by: 6).map { index in
+                CGPoint(x: CGFloat((floats[index] + bounds.x) / (2 * bounds.x)),
+                        y: CGFloat((floats[index + 2] + bounds.y) / (2 * bounds.y)))
+            }
+            sources.append(SCNGeometrySource(textureCoordinates: coordinates))
+        }
+        let result = SCNGeometry(sources: sources, elements: elements ?? groups.map { SCNGeometryElement(indices: $0, primitiveType: .triangles) })
         result.materials = materials
         return result
     }

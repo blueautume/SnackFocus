@@ -9,6 +9,7 @@ struct LabBoardInput {
     let progress: Double
     let time: Double
     let completedMoves: Int
+    let reduceMotion: Bool
     let frame: SnakeVisualFrame
 
     init(configuration: SnakeConfiguration, snake: [GridCell], previousSnake: [GridCell],
@@ -20,9 +21,15 @@ struct LabBoardInput {
         self.progress = progress
         self.time = time
         self.completedMoves = completedMoves
+        self.reduceMotion = reduceMotion
+        // The lab's skin is attached to the moving body. The original classic
+        // renderer intentionally pins its middle wave to the world; using it
+        // here made the material look stationary except near the head/tail.
+        // A head-relative wave advances with the actual interpolated cells,
+        // without a second elapsed-time scroll speed or a reset at wrap seams.
         self.frame = SnakeVisualGeometry.frame(configuration: configuration, snake: snake,
-            previousSnake: previousSnake, food: food, progress: progress, time: time,
-            completedMoves: completedMoves, appearance: .classic, reduceMotion: reduceMotion)
+            previousSnake: previousSnake, food: food, progress: progress, time: 0,
+            completedMoves: completedMoves, appearance: .modern, reduceMotion: reduceMotion)
     }
 
     /// An intentionally legible material specimen, independent of game state.
@@ -36,6 +43,34 @@ struct LabBoardInput {
         return LabBoardInput(configuration: .firstMap, snake: cells, previousSnake: cells,
             food: GridCell(x: 14, y: 5), progress: 1, time: 0.3, completedMoves: 0)
     }()
+
+    static let thumbnail: LabBoardInput = {
+        var cells = stride(from: 10, through: 2, by: -1).map { GridCell(x: $0, y: 1) }
+        cells += (2...3).map { GridCell(x: 2, y: $0) }
+        cells += (3...9).map { GridCell(x: $0, y: 3) }
+        cells += (4...5).map { GridCell(x: 9, y: $0) }
+        cells += stride(from: 8, through: 5, by: -1).map { GridCell(x: $0, y: 5) }
+        return LabBoardInput(configuration: SnakeConfiguration(columns: 12, rows: 6),
+            snake: cells, previousSnake: cells, food: GridCell(x: 11, y: 1),
+            progress: 1, time: 0, completedMoves: 0)
+    }()
+
+    /// A closed preview route demonstrates the same moving material as play.
+    /// This never starts or mutates a user's session.
+    static func movingThumbnail(distance: Double) -> LabBoardInput {
+        var route = (1...10).map { GridCell(x: $0, y: 1) }
+        route += (2...4).map { GridCell(x: 10, y: $0) }
+        route += stride(from: 9, through: 1, by: -1).map { GridCell(x: $0, y: 4) }
+        route += stride(from: 3, through: 2, by: -1).map { GridCell(x: 1, y: $0) }
+        let whole = Int(floor(max(0, distance)))
+        func cells(at head: Int) -> [GridCell] {
+            (0..<19).map { route[((head - $0) % route.count + route.count) % route.count] }
+        }
+        return LabBoardInput(configuration: SnakeConfiguration(columns: 12, rows: 6),
+            snake: cells(at: whole), previousSnake: cells(at: whole - 1),
+            food: GridCell(x: 6, y: 2), progress: max(0, distance) - Double(whole),
+            time: max(0, distance) / 2, completedMoves: whole + 1)
+    }
 }
 
 struct LabRenderSample {
@@ -44,7 +79,53 @@ struct LabRenderSample {
     let position: Double
 }
 
+struct LabMaterialMark {
+    let center: CGPoint
+    /// Head to tail in logical board coordinates, before any wrapping.
+    let tangent: CGPoint
+    let radius: CGFloat
+    let position: Double
+}
+
 enum LabRenderGeometry {
+    /// Material anchors are placed on the full body before seam splitting.
+    /// Stable head-relative positions move at the head's speed on every strip.
+    static func materialMarks(input: LabBoardInput, spacing: Double) -> [LabMaterialMark] {
+        guard spacing.isFinite, spacing > 0, let last = input.frame.samples.last,
+              last.bodyPosition > 2 else { return [] }
+        var result: [LabMaterialMark] = []
+        let samples = input.frame.samples
+        var cursor = 1
+        var position = 1.2
+        while position < last.bodyPosition - 0.8 {
+            while cursor < samples.count - 1 && samples[cursor].bodyPosition < position { cursor += 1 }
+            let a = samples[max(0, cursor - 1)], b = samples[cursor]
+            let delta = b.bodyPosition - a.bodyPosition
+            let t = delta > 0.000_001 ? min(1, max(0, (position - a.bodyPosition) / delta)) : 0
+            let point = a.center * (1 - t) + b.center * t
+            let tangent = (b.center - a.center).normalized
+            let radius = CGFloat(a.radius * (1 - t) + b.radius * t)
+            let center = wrap(point, configuration: input.configuration)
+            let width = CGFloat(input.configuration.columns), height = CGFloat(input.configuration.rows)
+            let margin = max(radius, 0.42)
+            var xs: [CGFloat] = [0], ys: [CGFloat] = [0]
+            if input.configuration.wrapsHorizontally {
+                if center.x - margin < 0 { xs.append(width) }
+                if center.x + margin > width { xs.append(-width) }
+            }
+            if input.configuration.wrapsVertically {
+                if center.y - margin < 0 { ys.append(height) }
+                if center.y + margin > height { ys.append(-height) }
+            }
+            for dx in xs { for dy in ys {
+                result.append(LabMaterialMark(center: CGPoint(x: center.x + dx, y: center.y + dy),
+                    tangent: CGPoint(x: tangent.x, y: tangent.y), radius: radius, position: position))
+            } }
+            position += spacing
+        }
+        return result
+    }
+
     static func wrap(_ point: SnakeVisualPoint, configuration: SnakeConfiguration) -> CGPoint {
         func coordinate(_ v: Double, extent: Int, wraps: Bool) -> CGFloat {
             guard wraps else { return CGFloat(v) }

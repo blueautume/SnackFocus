@@ -17,25 +17,40 @@ struct LabSnakeCanvas: View {
             clipped.clip(to: Path(rect))
             clipped.fill(Path(rect), with: .color(palette.board))
             drawGrid(in: clipped, size: size, cell: cell)
-            drawWalls(in: clipped, cell: cell, unit: unit)
+            // Shadows and neon bloom obey the same occupied wall cells as
+            // the body. Painting a translucent wall on top is insufficient.
+            var playable = Path(rect)
+            for wall in input.configuration.walls {
+                playable.addRect(CGRect(x: CGFloat(wall.x) * cell.width,
+                                        y: CGFloat(wall.y) * cell.height,
+                                        width: cell.width, height: cell.height))
+            }
+            var snakeContext = clipped
+            snakeContext.clip(to: playable, style: FillStyle(eoFill: true, antialiased: false))
 
             if form == .pixel {
-                drawPixels(in: clipped, size: size)
+                drawPixels(in: snakeContext, size: size, cell: cell, unit: unit)
             } else {
                 let groups = LabRenderGeometry.wrappedSamples(input: input).map {
                     projected($0, cell: cell, unit: unit)
                 }.filter { !$0.isEmpty }
                 for points in groups {
                     switch form {
-                    case .ink: drawInk(points, in: clipped, unit: unit)
-                    case .neon: drawNeon(points, in: clipped, unit: unit)
-                    case .origami: drawPaper(points, in: clipped, unit: unit)
-                    default: drawRibbon(points, in: clipped, unit: unit)
+                    case .ink: drawInk(points, in: snakeContext, unit: unit)
+                    case .neon: drawNeon(points, in: snakeContext, unit: unit)
+                    case .origami: drawPaper(points, in: snakeContext, unit: unit)
+                    default: drawRibbon(points, in: snakeContext, unit: unit)
                     }
                 }
-                drawHead(in: clipped, cell: cell, unit: unit)
-                drawFood(in: clipped, cell: cell, unit: unit)
+                var bodyMask = Path()
+                for points in groups { bodyMask.addPath(strand(points)) }
+                var materialContext = snakeContext
+                materialContext.clip(to: bodyMask)
+                drawMaterialMarks(in: materialContext, cell: cell, unit: unit)
+                drawHead(in: snakeContext, cell: cell, unit: unit)
+                drawFood(in: snakeContext, cell: cell, unit: unit)
             }
+            drawWalls(in: clipped, cell: cell, unit: unit)
         }
         .accessibilityHidden(true)
     }
@@ -133,7 +148,7 @@ struct LabSnakeCanvas: View {
         context.stroke(highlights, with: .color(palette.surface.opacity(0.25)), lineWidth: max(0.5, unit * 0.045))
     }
 
-    private func drawPixels(in context: GraphicsContext, size: CGSize) {
+    private func drawPixels(in context: GraphicsContext, size: CGSize, cell: CGSize, unit: CGFloat) {
         let frame = input.frame
         let width = size.width / CGFloat(frame.columns)
         let height = size.height / CGFloat(frame.rows)
@@ -149,22 +164,22 @@ struct LabSnakeCanvas: View {
             else if value == 2 { food.addRect(rect) }
         }
         context.fill(body, with: .color(palette.accent), style: FillStyle(antialiased: false))
+        var materialContext = context
+        materialContext.clip(to: body, style: FillStyle(antialiased: false))
+        drawMaterialMarks(in: materialContext, cell: cell, unit: unit)
         context.fill(food, with: .color(palette.accent2), style: FillStyle(antialiased: false))
     }
 
     private func drawRibbon(_ points: [StrandPoint], in context: GraphicsContext, unit: CGFloat) {
-        guard let first = points.first, let last = points.last else { return }
+        guard !points.isEmpty else { return }
         let outline = strand(points)
         var shadow = context
         shadow.translateBy(x: unit * 0.035, y: unit * 0.065)
         shadow.fill(outline, with: .color(palette.ink.opacity(0.14)))
-        context.fill(outline, with: .linearGradient(Gradient(colors: [palette.accent, palette.accent2, palette.accent]),
-                                                    startPoint: first.center, endPoint: last.center))
+        context.fill(outline, with: .color(palette.accent))
         context.fill(strand(points, lower: -0.95, upper: -0.58), with: .color(palette.ink.opacity(0.15)))
-        context.fill(strand(points, lower: 0.08, upper: 0.47),
-                     with: .linearGradient(Gradient(colors: [Color.white.opacity(0.64), Color.white.opacity(0.12)]),
-                                           startPoint: first.center, endPoint: last.center))
-        context.fill(strand(points, lower: 0.16, upper: 0.23), with: .color(Color.white.opacity(0.36)))
+        context.fill(strand(points, lower: -0.18, upper: 0.58), with: .color(palette.accent2.opacity(0.38)))
+        context.fill(strand(points, lower: 0.16, upper: 0.27), with: .color(Color.white.opacity(0.20)))
     }
 
     private func drawInk(_ points: [StrandPoint], in context: GraphicsContext, unit: CGFloat) {
@@ -172,25 +187,6 @@ struct LabSnakeCanvas: View {
         context.fill(strand(points, lower: -1.08, upper: 1.08), with: .color(palette.ink.opacity(0.12)))
         context.fill(outline, with: .color(palette.ink.opacity(0.91)))
         context.fill(strand(points, lower: -0.60, upper: -0.13), with: .color(palette.accent.opacity(0.20)))
-        var dryBrush = context
-        dryBrush.clip(to: outline)
-        var fibers = Path()
-        // At most 1,200 tiny marks even with a full 384-cell board.
-        let step = max(1, points.count / 600)
-        for index in stride(from: 0, to: points.count, by: step) {
-            let point = points[index]
-            let seed = Int((point.position * 37).rounded(.down))
-            for lane in 0..<2 {
-                let amount = (grain(seed * 7 + lane + 11) * 1.7 - 0.85)
-                let start = offset(point, by: amount)
-                let length = unit * (0.06 + grain(seed * 11 + lane + 5) * 0.15)
-                fibers.move(to: start)
-                fibers.addLine(to: CGPoint(x: start.x + point.normal.dy * length,
-                                           y: start.y - point.normal.dx * length))
-            }
-        }
-        dryBrush.stroke(fibers, with: .color(palette.board.opacity(0.56)),
-                        style: StrokeStyle(lineWidth: max(0.45, unit * 0.025), lineCap: .round))
     }
 
     private func drawNeon(_ points: [StrandPoint], in context: GraphicsContext, unit: CGFloat) {
@@ -201,42 +197,112 @@ struct LabSnakeCanvas: View {
         }
         context.fill(tube, with: .color(palette.accent))
         context.fill(strand(points, lower: -0.44, upper: 0.44), with: .color(palette.accent2.opacity(0.72)))
-        context.fill(strand(points, lower: -0.15, upper: 0.15), with: .color(Color.white.opacity(0.94)))
+        context.fill(strand(points, lower: -0.15, upper: 0.15), with: .color(Color.white.opacity(0.34)))
     }
 
     private func drawPaper(_ points: [StrandPoint], in context: GraphicsContext, unit: CGFloat) {
         context.fill(strand(points), with: .color(palette.accent))
-        guard points.count > 1 else { return }
-        // Folds follow the same continuous body; each facet spans about half
-        // a logical cell rather than introducing a separate collision shape.
-        let step = max(1, points.count / 760)
-        var index = 0
-        while index < points.count - 1 {
-            let end = min(points.count - 1, index + max(2, step))
-            let a = points[index], b = points[end]
-            let leftA = offset(a, by: -1), rightA = offset(a, by: 1)
-            let leftB = offset(b, by: -1), rightB = offset(b, by: 1)
-            let ridgeA = offset(a, by: 0.12), ridgeB = offset(b, by: 0.12)
-            var light = Path()
-            light.move(to: leftA)
-            light.addLine(to: leftB)
-            light.addLine(to: ridgeB)
-            light.addLine(to: ridgeA)
-            light.closeSubpath()
-            let alternate = Int(a.position * 2) % 2 == 0
-            context.fill(light, with: .color(alternate ? palette.accent2 : palette.accent2.opacity(0.70)))
-            var facet = Path()
-            facet.move(to: rightA)
-            facet.addLine(to: rightB)
-            facet.addLine(to: ridgeA)
-            facet.closeSubpath()
-            context.fill(facet, with: .color(palette.ink.opacity(alternate ? 0.23 : 0.12)))
-            var fold = Path()
-            fold.move(to: leftA)
-            fold.addLine(to: ridgeB)
-            fold.addLine(to: rightB)
-            context.stroke(fold, with: .color(palette.surface.opacity(0.30)), lineWidth: max(0.35, unit * 0.025))
-            index = end
+        context.fill(strand(points, lower: -1, upper: -0.05), with: .color(palette.accent2.opacity(0.38)))
+    }
+
+    /// Material coordinates are sampled on the complete head-to-tail path
+    /// before wrapping. Neither a new strip nor a seam starts a new pattern.
+    /// A fixed mark travels with the body, so straight middle sections remain
+    /// visibly alive without an unrelated clock or a scrolling UV offset.
+    private func drawMaterialMarks(in context: GraphicsContext, cell: CGSize, unit: CGFloat) {
+        let spacing: Double
+        switch form {
+        case .pixel: spacing = 0.80
+        case .ink: spacing = 0.62
+        case .neon: spacing = 1.10
+        case .origami: spacing = 0.66
+        default: spacing = 1.00
+        }
+        let marks = LabRenderGeometry.materialMarks(input: input, spacing: spacing)
+        for mark in marks {
+            let radius = min(unit * 0.42, mark.radius * unit)
+            guard radius > unit * 0.07 else { continue }
+            let center = CGPoint(x: mark.center.x * cell.width, y: mark.center.y * cell.height)
+            let angle = atan2(mark.tangent.y * cell.height, mark.tangent.x * cell.width)
+            let seed = Int((mark.position * 1_000).rounded())
+            if form == .pixel {
+                // Quantize to the original 7-dot cell lattice instead of
+                // drawing a smooth decoration over the coarse pixel body.
+                let dot = CGSize(width: cell.width / CGFloat(SnakeVisualGeometry.pixelsPerCell),
+                                 height: cell.height / CGFloat(SnakeVisualGeometry.pixelsPerCell))
+                let normal = CGPoint(x: -sin(angle), y: cos(angle))
+                let x = center.x - normal.x * radius * 0.24
+                let y = center.y - normal.y * radius * 0.24
+                let scale = Path(CGRect(x: (x / dot.width).rounded(.down) * dot.width,
+                                        y: (y / dot.height).rounded(.down) * dot.height,
+                                        width: dot.width, height: dot.height))
+                // A single light scale preserves a continuous 3-dot body;
+                // two dark holes could visually sever a narrow pixel turn.
+                context.fill(scale, with: .color(Color.white.opacity(0.62)), style: FillStyle(antialiased: false))
+                continue
+            }
+            var material = context
+            material.translateBy(x: center.x, y: center.y)
+            material.rotate(by: .radians(angle))
+            switch form {
+            case .ink:
+                var flecks = Path()
+                for lane in 0..<4 {
+                    let x = (grain(seed + lane * 17) - 0.5) * unit * 0.24
+                    let y = (grain(seed + lane * 31 + 7) - 0.5) * radius * 1.50
+                    let length = unit * (0.12 + grain(seed + lane * 11 + 3) * 0.16)
+                    flecks.move(to: CGPoint(x: x - length / 2, y: y))
+                    flecks.addLine(to: CGPoint(x: x + length / 2, y: y + radius * 0.05))
+                }
+                material.stroke(flecks, with: .color(palette.board.opacity(0.68)),
+                                style: StrokeStyle(lineWidth: max(0.55, unit * 0.043), lineCap: .round))
+                let wash = CGRect(x: -unit * 0.12, y: radius * 0.35,
+                                  width: unit * 0.25, height: radius * 0.20)
+                material.fill(Path(ellipseIn: wash), with: .color(palette.accent2.opacity(0.38)))
+            case .neon:
+                let segment = CGRect(x: -unit * 0.19, y: -radius * 0.43,
+                                     width: unit * 0.38, height: radius * 0.86)
+                material.fill(Path(roundedRect: segment, cornerRadius: radius * 0.35),
+                              with: .color(palette.accent2.opacity(0.88)))
+                let core = CGRect(x: -unit * 0.17, y: -radius * 0.19,
+                                  width: unit * 0.34, height: radius * 0.38)
+                material.fill(Path(roundedRect: core, cornerRadius: radius * 0.18),
+                              with: .color(Color.white.opacity(0.98)))
+            case .origami:
+                let halfLength = unit * 0.29
+                var light = Path()
+                light.move(to: CGPoint(x: -halfLength, y: -radius))
+                light.addLine(to: CGPoint(x: halfLength, y: -radius * 0.83))
+                light.addLine(to: CGPoint(x: halfLength * 0.52, y: radius * 0.10))
+                light.addLine(to: CGPoint(x: -halfLength, y: radius * 0.03))
+                light.closeSubpath()
+                material.fill(light, with: .color(palette.accent2.opacity(0.93)))
+                var shade = Path()
+                shade.move(to: CGPoint(x: -halfLength, y: radius * 0.03))
+                shade.addLine(to: CGPoint(x: halfLength * 0.52, y: radius * 0.10))
+                shade.addLine(to: CGPoint(x: halfLength, y: radius * 0.85))
+                shade.addLine(to: CGPoint(x: -halfLength, y: radius))
+                shade.closeSubpath()
+                material.fill(shade, with: .color(palette.ink.opacity(0.24)))
+                var crease = Path()
+                crease.move(to: CGPoint(x: -halfLength, y: -radius))
+                crease.addLine(to: CGPoint(x: halfLength * 0.52, y: radius * 0.10))
+                crease.addLine(to: CGPoint(x: -halfLength, y: radius))
+                material.stroke(crease, with: .color(palette.surface.opacity(0.63)),
+                                lineWidth: max(0.45, unit * 0.035))
+            default:
+                var glint = Path()
+                glint.move(to: CGPoint(x: -unit * 0.14, y: -radius * 0.76))
+                glint.addQuadCurve(to: CGPoint(x: unit * 0.10, y: 0),
+                                  control: CGPoint(x: -unit * 0.02, y: -radius * 0.20))
+                glint.addQuadCurve(to: CGPoint(x: -unit * 0.14, y: radius * 0.76),
+                                  control: CGPoint(x: -unit * 0.02, y: radius * 0.20))
+                material.stroke(glint, with: .color(Color.white.opacity(0.66)),
+                                style: StrokeStyle(lineWidth: max(0.65, unit * 0.063), lineCap: .round))
+                let sheen = CGRect(x: -unit * 0.10, y: -radius * 0.50,
+                                   width: unit * 0.25, height: radius * 0.16)
+                material.fill(Path(ellipseIn: sheen), with: .color(palette.accent2.opacity(0.72)))
+            }
         }
     }
 
@@ -245,8 +311,9 @@ struct LabSnakeCanvas: View {
         let frame = input.frame
         let heading = frame.headHeading
         let angle = atan2(heading.y, heading.x)
-        let x = CGFloat(frame.headCenter.x) * cell.width
-        let y = CGFloat(frame.headCenter.y) * cell.height
+        let logicalHead = LabRenderGeometry.head(input: input)
+        let x = logicalHead.x * cell.width
+        let y = logicalHead.y * cell.height
         let shiftsX: [CGFloat] = input.configuration.wrapsHorizontally ? [-CGFloat(input.configuration.columns), 0, CGFloat(input.configuration.columns)] : [0]
         let shiftsY: [CGFloat] = input.configuration.wrapsVertically ? [-CGFloat(input.configuration.rows), 0, CGFloat(input.configuration.rows)] : [0]
         for sx in shiftsX {
@@ -299,7 +366,7 @@ struct LabSnakeCanvas: View {
         guard let food = input.food else { return }
         let center = CGPoint(x: (CGFloat(food.x) + 0.5) * cell.width,
                              y: (CGFloat(food.y) + 0.5) * cell.height)
-        let pulse = 0.94 + 0.06 * sin(input.time * 2.2)
+        let pulse = input.reduceMotion ? 1 : 0.94 + 0.06 * sin(input.time * 2.2)
         let radius = unit * 0.24 * CGFloat(pulse)
         let rect = CGRect(x: center.x - radius, y: center.y - radius,
                           width: radius * 2, height: radius * 2)
