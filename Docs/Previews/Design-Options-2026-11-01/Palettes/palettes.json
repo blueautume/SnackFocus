@@ -1,0 +1,116 @@
+{
+  "kind": "Code-native visual mockups, not simulator screenshots",
+  "source": "Current ContentView and PixelInterface; original Fusion Pixel font; maps and snake raster exported from production geometry, seed 42",
+  "palettes": [
+    {
+      "id": "P01",
+      "title": "经典液晶",
+      "slug": "retro-lcd",
+      "paper": "#B3C27D",
+      "ink": "#21301A",
+      "note": "熟悉的掌机记忆，复古而专注",
+      "file": "P01-retro-lcd.png",
+      "contrastRatio": 7.27,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P02",
+      "title": "温润纸白",
+      "slug": "warm-paper",
+      "paper": "#F3EFE6",
+      "ink": "#343B35",
+      "note": "像纸张一样柔和，干净耐看",
+      "file": "P02-warm-paper.png",
+      "contrastRatio": 10.04,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P03",
+      "title": "薄荷清晨",
+      "slug": "mint-morning",
+      "paper": "#DDEEE5",
+      "ink": "#25594A",
+      "note": "轻盈清爽，带一点自然气息",
+      "file": "P03-mint-morning.png",
+      "contrastRatio": 6.69,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P04",
+      "title": "雾蓝静心",
+      "slug": "mist-blue",
+      "paper": "#DFEAF5",
+      "ink": "#254B6B",
+      "note": "清透安静，适合平稳的节奏",
+      "file": "P04-mist-blue.png",
+      "contrastRatio": 7.5,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P05",
+      "title": "轻柔薰衣草",
+      "slug": "soft-lavender",
+      "paper": "#EAE2F4",
+      "ink": "#503A69",
+      "note": "柔软舒缓，轻微的梦幻感",
+      "file": "P05-soft-lavender.png",
+      "contrastRatio": 7.76,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P06",
+      "title": "暖杏桃",
+      "slug": "warm-apricot",
+      "paper": "#F7E0D5",
+      "ink": "#6C3D32",
+      "note": "温暖亲切，降低界面的冷感",
+      "file": "P06-warm-apricot.png",
+      "contrastRatio": 7.05,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P07",
+      "title": "蜂蜜琥珀",
+      "slug": "honey-amber",
+      "paper": "#F4D99A",
+      "ink": "#59431B",
+      "note": "暖色怀旧，像琥珀色的屏幕",
+      "file": "P07-honey-amber.png",
+      "contrastRatio": 6.79,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P08",
+      "title": "冷灰石墨",
+      "slug": "cool-graphite",
+      "paper": "#E5E7E8",
+      "ink": "#343B40",
+      "note": "克制中性，偏工具感的清晰",
+      "file": "P08-cool-graphite.png",
+      "contrastRatio": 9.17,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P09",
+      "title": "深林夜色",
+      "slug": "forest-night",
+      "paper": "#152722",
+      "ink": "#B6D19A",
+      "note": "低亮度深绿，安静的夜间气息",
+      "file": "P09-forest-night.png",
+      "contrastRatio": 9.35,
+      "minimumTextContrastPassed": true
+    },
+    {
+      "id": "P10",
+      "title": "午夜蓝",
+      "slug": "midnight-blue",
+      "paper": "#172332",
+      "ink": "#AACCE0",
+      "note": "深蓝与冰蓝，冷静的夜间观感",
+      "file": "P10-midnight-blue.png",
+      "contrastRatio": 9.39,
+      "minimumTextContrastPassed": true
+    }
+  ]
+}
