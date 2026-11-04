@@ -6,7 +6,11 @@ struct ContentView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsPrivacyPolicy = false
+    @State private var visibleSafeArea = EdgeInsets()
     @AccessibilityFocusState private var restartTitleFocused: Bool
+    @AccessibilityFocusState private var privacyTitleFocused: Bool
+    @AccessibilityFocusState private var privacyButtonFocused: Bool
 
     #if DEBUG
     init() {}
@@ -18,9 +22,14 @@ struct ContentView: View {
     #endif
 
     private var strings: SnakeStrings { SnakeStrings(locale: locale) }
+    private var isImmersed: Bool { session.isImmersed }
 
     var body: some View {
         GeometryReader { geometry in
+            // Some devices reclaim safe area when system bars disappear.
+            let topGap = max(0, visibleSafeArea.top - geometry.safeAreaInsets.top)
+            let bottomGap = max(0, visibleSafeArea.bottom - geometry.safeAreaInsets.bottom)
+            let gameSize = CGSize(width: geometry.size.width, height: max(0, geometry.size.height - topGap - bottomGap))
             ScrollView(showsIndicators: false) {
                 if session.stage == .setup {
                     setup(in: geometry.size)
@@ -32,26 +41,50 @@ struct ContentView: View {
                 } else {
                     VStack(spacing: 16) {
                         header
-                        game(in: geometry.size)
+                            .modifier(GameChrome(hidden: isImmersed))
+                        game(in: gameSize)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
                     .frame(maxWidth: 510)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: geometry.size.height)
+                    .frame(minHeight: gameSize.height)
+                    .padding(.top, topGap)
+                    .padding(.bottom, bottomGap)
                 }
             }
-            .disabled(session.showsRestartConfirmation)
-            .accessibilityHidden(session.showsRestartConfirmation)
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { session.recordInteraction() },
+                                 including: session.isRunning ? .all : .subviews)
+            .disabled(session.showsRestartConfirmation || showsPrivacyPolicy)
+            .accessibilityHidden(session.showsRestartConfirmation || showsPrivacyPolicy)
         }
-        .background(LCD.paper.ignoresSafeArea())
+        .onGeometryChange(for: EdgeInsets.self, of: \.safeAreaInsets) { insets in
+            if !isImmersed { visibleSafeArea = insets }
+        }
+        .modifier(GameImmersion(amount: isImmersed ? 1 : 0))
         .foregroundStyle(LCD.ink)
         .preferredColorScheme(.light)
+        .statusBarHidden(isImmersed)
+        .persistentSystemOverlays(isImmersed ? .hidden : .automatic)
+        .animation(.easeInOut(duration: reduceMotion ? 0.25 : 1.8), value: isImmersed)
         .overlay {
+            if isImmersed {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { session.recordInteraction() }
+                    .accessibilityHidden(true)
+            }
             if session.showsRestartConfirmation { restartConfirmation }
+            if showsPrivacyPolicy { privacyPolicy }
         }
         .onChange(of: session.showsRestartConfirmation) { _, shown in
             restartTitleFocused = shown
+        }
+        .onChange(of: showsPrivacyPolicy) { _, shown in
+            privacyTitleFocused = shown
+            privacyButtonFocused = !shown
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -67,8 +100,20 @@ struct ContentView: View {
             PixelText(text: strings.text("app.title"), pixel: 3)
                 .accessibilityLabel(strings.text("a11y.app"))
             Spacer()
+            if session.stage == .setup {
+                Button { showsPrivacyPolicy = true } label: {
+                    PixelLockIcon()
+                        .foregroundStyle(LCD.ink.opacity(0.65))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(strings.text("a11y.privacy"))
+                .accessibilityIdentifier("setup.privacy")
+                .accessibilityFocused($privacyButtonFocused)
+            }
         }
-        .frame(height: 36)
+        .frame(height: session.stage == .setup ? 44 : 36)
     }
 
     private func setup(in size: CGSize) -> some View {
@@ -77,7 +122,7 @@ struct ContentView: View {
         let maximumThumbnailHeight = min(240, floor(max(0, contentWidth - 24) / 3 * 1.5))
         // Four columns only when every translated label and estimate has room.
         let speedColumnCount = contentWidth >= 334 && !dynamicTypeSize.isAccessibilitySize ? 4 : 2
-        let reservedHeight: CGFloat = 356 + sectionGap * 4 + (speedColumnCount == 2 ? 90 : 0)
+        let reservedHeight: CGFloat = 364 + sectionGap * 4 + (speedColumnCount == 2 ? 90 : 0)
         let thumbnailHeight = min(maximumThumbnailHeight, max(108, floor((size.height - reservedHeight) / 2)))
         return VStack(alignment: .leading, spacing: 0) {
             header
@@ -175,6 +220,7 @@ struct ContentView: View {
         let width = floor(available / CGFloat(configuration.columns)) * CGFloat(configuration.columns)
         return VStack(spacing: 16) {
             scoreLine
+                .modifier(GameChrome(hidden: isImmersed))
             board(width: width)
                 .frame(maxWidth: .infinity)
             if !session.hasEnded {
@@ -192,6 +238,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(PixelButtonStyle())
                 .padding(.bottom, 3)
+                .modifier(GameChrome(hidden: isImmersed))
             }
         }
     }
@@ -237,6 +284,11 @@ struct ContentView: View {
         }
         .padding(5)
         .overlay { PixelBoardOutline() }
+        .accessibilityActions {
+            if isImmersed {
+                Button(strings.text("a11y.showControls")) { session.recordInteraction() }
+            }
+        }
     }
 
     private var endCard: some View {
@@ -295,6 +347,69 @@ struct ContentView: View {
         }
     }
 
+    private var privacyPolicy: some View {
+        GeometryReader { geometry in
+            ZStack {
+                LCD.paper.opacity(0.86)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { showsPrivacyPolicy = false }
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 12) {
+                        PixelLabel(text: strings.text("privacy.title"), size: 24)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityFocused($privacyTitleFocused)
+                            .accessibilityIdentifier("privacy.title")
+                        Spacer(minLength: 0)
+                        Button { showsPrivacyPolicy = false } label: {
+                            PixelControlLabel(text: strings.text("action.close"), size: 18)
+                        }
+                        .buttonStyle(PixelButtonStyle())
+                        .frame(width: 84)
+                        .accessibilityLabel(strings.text("a11y.closePrivacy"))
+                        .accessibilityIdentifier("privacy.close")
+                    }
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            PixelLabel(text: strings.text("privacy.updated"), size: 12)
+                            PixelLabel(text: strings.text("privacy.intro"), size: 16)
+                            privacySection(title: "privacy.data.title", body: "privacy.data.body")
+                            privacySection(title: "privacy.storage.title", body: "privacy.storage.body")
+                            privacySection(title: "privacy.services.title", body: "privacy.services.body")
+                            privacySection(title: "privacy.choices.title", body: "privacy.choices.body")
+                            privacySection(title: "privacy.updates.title", body: "privacy.updates.body")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 8)
+                    }
+                    .accessibilityIdentifier("privacy.content")
+                }
+                .padding(20)
+                .frame(maxWidth: 560)
+                .frame(height: min(680, max(0, geometry.size.height - 48)))
+                .background(LCD.paper)
+                .overlay { Rectangle().strokeBorder(LCD.ink, lineWidth: 2) }
+                .background { Rectangle().fill(LCD.ink).offset(x: 5, y: 5) }
+                .padding(.horizontal, 24)
+                .accessibilityElement(children: .contain)
+                .accessibilityAddTraits(.isModal)
+                .accessibilityAction(.escape) { showsPrivacyPolicy = false }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func privacySection(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PixelLabel(text: strings.text(title), size: 18)
+                .accessibilityAddTraits(.isHeader)
+            PixelLabel(text: strings.text(body), size: 16)
+        }
+    }
+
     private var timeText: String {
         let seconds = Int(session.elapsedSeconds)
         return seconds >= 3_600
@@ -302,6 +417,33 @@ struct ContentView: View {
             : String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
+}
+
+private struct GameChrome: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
+    }
+}
+
+private struct GameImmersion: ViewModifier, Animatable {
+    var amount: Double
+
+    nonisolated var animatableData: Double {
+        get { amount }
+        set { amount = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let palette = LCD.GamePalette(immersion: amount)
+        content
+            .environment(\.gamePalette, palette)
+            .background(palette.background.ignoresSafeArea())
+    }
 }
 
 /// A small original 5×7 bitmap alphabet keeps the HUD independent of font assets.
@@ -351,6 +493,7 @@ private struct RetroBoard: View {
     let appearance: SnakeAppearance
     let reduceMotion: Bool
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.gamePalette) private var palette
     @Environment(\.locale) private var locale
     private var strings: SnakeStrings { SnakeStrings(locale: locale) }
 
@@ -364,7 +507,8 @@ private struct RetroBoard: View {
             let pitch = size.width / CGFloat(frame.columns)
             let dotSize = max(1 / displayScale, floor(pitch * displayScale * 0.90) / displayScale)
             let inset = (pitch - dotSize) / 2
-            var pixels = Path()
+            var snake = Path()
+            var food = Path()
             for y in 0..<frame.rows {
                 for x in 0..<frame.columns where frame.dots[y * frame.columns + x] != 0 {
                     let rect = CGRect(
@@ -372,12 +516,22 @@ private struct RetroBoard: View {
                         y: ((CGFloat(y) * pitch + inset) * displayScale).rounded() / displayScale,
                         width: dotSize, height: dotSize
                     )
-                    pixels.addRect(rect)
+                    if frame.dots[y * frame.columns + x] == 2 {
+                        food.addRect(rect)
+                    } else {
+                        snake.addRect(rect)
+                    }
                 }
             }
-            context.fill(pixels, with: .color(LCD.ink))
+            if let edge = palette.detailEdge {
+                let lineWidth = 2 / displayScale
+                context.stroke(snake, with: .color(edge), lineWidth: lineWidth)
+                context.stroke(food, with: .color(edge), lineWidth: lineWidth)
+            }
+            context.fill(snake, with: .color(palette.snake))
+            context.fill(food, with: .color(palette.food))
         }
-        .background(LCD.paper)
+        .background(palette.background)
         .overlay { PixelWalls(configuration: engine.configuration) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(strings.format("a11y.board", boundaryDescription))

@@ -54,8 +54,11 @@ final class SnakeSession: ObservableObject {
     @Published private(set) var movementBeganAt = Date()
     @Published private(set) var movementBeganAtElapsed: TimeInterval = 0
     @Published private(set) var moveDuration: Double = SnakeSpeed.calm.interval
+    @Published private var lastInteractionAtElapsed: TimeInterval = 0
     var speed: SnakeSpeed { selectedSpeed }
-    var isRunning: Bool { stage == .playing && !isPaused && !isInBackground && !showsRestartConfirmation }
+    private var isPlaying: Bool { stage == .playing && !isPaused && !showsRestartConfirmation }
+    var isRunning: Bool { isPlaying && !isInBackground }
+    var isImmersed: Bool { isPlaying && elapsedSeconds - lastInteractionAtElapsed >= 30 }
     var hasEnded: Bool { stage == .finished }
     var occupancy: Double { Double(engine.snake.count) / Double(engine.configuration.cellCount) }
 
@@ -170,10 +173,16 @@ final class SnakeSession: ObservableObject {
         scheduleLoop()
     }
 
+    func recordInteraction() {
+        guard isRunning else { return }
+        lastInteractionAtElapsed = currentElapsedTime()
+    }
+
     func togglePause() {
         guard stage == .playing, !showsRestartConfirmation else { return }
         if isPaused {
             isPaused = false
+            recordInteraction()
             startRunning()
         } else {
             isPaused = true
@@ -204,6 +213,7 @@ final class SnakeSession: ObservableObject {
         restartWasRunning = false
         if stage == .playing, shouldResume {
             isPaused = false
+            recordInteraction()
             startRunning()
         } else {
             synchronizeScreenAwake()
@@ -230,6 +240,7 @@ final class SnakeSession: ObservableObject {
         activeStartedAt = nil
         elapsedBeforeActiveSegment = 0
         elapsedSeconds = 0
+        lastInteractionAtElapsed = 0
         engine = SnakeEngine(configuration: selectedMap.configuration)
         previousSnake = engine.snake
         movementBeganAt = Date()

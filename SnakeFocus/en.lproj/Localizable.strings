@@ -9,6 +9,22 @@
 "action.restart" = "Restart";
 "action.cancel" = "Cancel";
 "action.confirmRestart" = "Restart";
+"action.close" = "Close";
+
+/* In-app privacy policy */
+"privacy.title" = "Privacy Policy";
+"privacy.updated" = "SnakeFocus 1.0.1 · Updated November 2, 2026";
+"privacy.intro" = "This policy describes information handling in the current SnakeFocus app. You can use the app offline without an account or submitting personal information.";
+"privacy.data.title" = "Information handled by the app";
+"privacy.data.body" = "The app makes no network requests and does not send personal information or gameplay records to us or third parties. It has no ads, analytics SDKs, cross-app tracking or cloud synchronization, and does not request access to your location, contacts, photos, camera or microphone.";
+"privacy.storage.title" = "On-device state and retention";
+"privacy.storage.body" = "Map, snake style and speed selections, snake positions, food, score and elapsed time are processed in memory on your device to run the current session. The app creates no persistent history. These states are not retained after the app process ends. Restarting resets the round; moving to the background pauses the game and timer.";
+"privacy.services.title" = "Platform and external services";
+"privacy.services.body" = "Apple handles App Store downloads, store accounts, payments and operating-system services under its own terms and privacy rules. Those platform activities are separate from data collection by this app. If you separately visit a website or send a support email, its published information-handling rules apply; using the app does not automatically send a message.";
+"privacy.choices.title" = "Your choices";
+"privacy.choices.body" = "You can close this policy and continue using the app. There is no account, server-side gameplay profile or cloud history to delete. Ending the app process or uninstalling the app stops its local processing.";
+"privacy.updates.title" = "Policy updates";
+"privacy.updates.body" = "If a future version introduces accounts, networking, analytics or other new information handling, we will update this policy and relevant notices before those features are provided, and obtain consent where required. The date above identifies this policy version.";
 
 /* Game and dialogs */
 "game.score" = "SCORE";
@@ -46,12 +62,15 @@
 /* VoiceOver labels and selection values */
 "a11y.app" = "Automatic snake";
 "a11y.start" = "Start with the selected map, snake style and speed";
+"a11y.privacy" = "Open the privacy policy";
+"a11y.closePrivacy" = "Close the privacy policy and return to setup";
 "a11y.selected" = "Selected";
 "a11y.notSelected" = "Not selected";
 "a11y.appearance" = "Snake style, %@";
 "a11y.map" = "Map, %@, %@";
 "a11y.pause" = "Pause the game and timer";
 "a11y.resume" = "Resume the game and timer";
+"a11y.showControls" = "Show game controls";
 "a11y.restart" = "Restart. Confirm to return to setup";
 "a11y.restartFinished" = "Restart. Return to setup without confirmation";
 "a11y.score" = "Food eaten: %d";

@@ -4,6 +4,8 @@
 <dict>
     <key>CFBundleDisplayName</key>
     <string>$(APP_DISPLAY_NAME)</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>UIAppFonts</key>
     <array>
         <string>FusionPixel/fusion-pixel-12px-monospaced-zh_hans.otf</string>

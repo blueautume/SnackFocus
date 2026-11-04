@@ -9,6 +9,22 @@
 "action.restart" = "重开";
 "action.cancel" = "取消";
 "action.confirmRestart" = "确认重开";
+"action.close" = "关闭";
+
+/* 应用内隐私说明 */
+"privacy.title" = "隐私协议";
+"privacy.updated" = "SnakeFocus 1.0.1 · 更新日期：2026年11月2日";
+"privacy.intro" = "本说明适用于当前版本的 SnakeFocus 应用。你可以离线使用，无需创建账号或提交个人信息。";
+"privacy.data.title" = "应用中的数据处理";
+"privacy.data.body" = "应用不发起网络请求，不向我们或第三方发送个人信息或游戏记录。没有广告、分析 SDK、跨应用追踪或云同步，也不请求位置、通讯录、照片、相机或麦克风权限。";
+"privacy.storage.title" = "本机状态与保存";
+"privacy.storage.body" = "地图、蛇形态与速度选择，以及蛇的位置、食物、得分和本次计时，仅在设备的应用运行内存中处理，用于运行当前会话。应用不建立持久化历史记录，进程结束后不保留这些状态。重开会重置本局；进入后台会暂停游戏与计时。";
+"privacy.services.title" = "平台与外部服务";
+"privacy.services.body" = "App Store 下载、商店账号、付款及操作系统服务由 Apple 按其条款和隐私规则处理，与本应用自行收集数据不同。若你另行访问网站或发送支持邮件，相关信息按其公布的处理规则处理；使用本应用不会自动发送邮件。";
+"privacy.choices.title" = "你的选择";
+"privacy.choices.body" = "你可以关闭本说明并继续使用应用。应用没有账号、服务器端游戏档案或云端历史记录需要删除。结束应用进程或卸载应用，即可停止本机处理。";
+"privacy.updates.title" = "说明更新";
+"privacy.updates.body" = "如果未来版本引入账号、联网、统计或其他新的信息处理，我们会在提供相关功能前更新本说明与必要提示，并在需要时取得同意。上方日期用于标识本说明的版本。";
 
 /* 游戏与弹层 */
 "game.score" = "得分";
@@ -46,12 +62,15 @@
 /* VoiceOver 标签与选择状态 */
 "a11y.app" = "自动贪吃蛇";
 "a11y.start" = "按所选地图、蛇形态和速度开始游戏";
+"a11y.privacy" = "打开隐私协议";
+"a11y.closePrivacy" = "关闭隐私协议并返回开局选择";
 "a11y.selected" = "已选择";
 "a11y.notSelected" = "未选择";
 "a11y.appearance" = "蛇形态，%@";
 "a11y.map" = "地图，%@，%@";
 "a11y.pause" = "暂停游戏与计时";
 "a11y.resume" = "继续游戏与计时";
+"a11y.showControls" = "显示游戏控件";
 "a11y.restart" = "重开，需确认后返回开局选择";
 "a11y.restartFinished" = "重开，直接返回开局选择，无需确认";
 "a11y.score" = "已吃 %d 个食物";
